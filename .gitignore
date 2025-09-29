@@ -17,3 +17,7 @@ __pycache__/
 # Reports - assuming they are generated
 reports/*.pdf
 reports/*.html
+
+# Specific markdown files to ignore
+organizing_code_and_project_stru.md
+organizing_workflow_for_gnn_expe.md
