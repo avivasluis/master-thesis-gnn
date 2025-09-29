@@ -1,0 +1,19 @@
+# Data files
+data/1_raw/
+data/2_intermediate/
+data/3_processed/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+
+# Reports - assuming they are generated
+reports/*.pdf
+reports/*.html
