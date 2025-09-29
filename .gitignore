@@ -18,6 +18,5 @@ __pycache__/
 reports/*.pdf
 reports/*.html
 
-# Specific markdown files to ignore
-organizing_code_and_project_stru.md
-organizing_workflow_for_gnn_expe.md
+# Local documentation and chat exports
+cursor-chats-exports/
