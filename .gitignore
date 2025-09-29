@@ -2,6 +2,7 @@
 data/1_raw/
 data/2_intermediate/
 data/3_processed/
+data/*.zip
 
 # Notebook checkpoints
 .ipynb_checkpoints/
