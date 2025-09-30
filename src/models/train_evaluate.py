@@ -42,6 +42,7 @@ def train_and_evaluate(model, data, early_stop_patience = 15, test_data = False,
 
     masks = data.masks
     data = data.to(device)
+    model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), weight_decay=0.001)
     criterion = torch.nn.BCEWithLogitsLoss()
 
