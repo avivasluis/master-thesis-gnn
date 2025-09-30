@@ -20,3 +20,6 @@ reports/*.html
 
 # Local documentation and chat exports
 cursor-chats-exports/
+
+# Local tests
+*.ipynb
