@@ -24,7 +24,7 @@ def generate_intermediate_train_table(db_path, tasks_path, time_window, n_exampl
     """
     # Define file paths
     review_file = os.path.join(db_path, 'review.parquet')
-    train_file = os.path.join(tasks_path, 'user-churn/train.parquet')
+    train_file = os.path.join(tasks_path, 'user-churn', 'train.parquet')
 
     # Lazily scan the parquet files to save memory
     review_lzydf = pl.scan_parquet(review_file)
@@ -143,26 +143,25 @@ def generate_final_train_table(expanded_train_df, product_category, output_path)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     expanded_train_df.to_csv(output_path)
     
-    # print('*'*50)
-    # print(f'expanded_train_df: {expanded_train_df}')
+    print('*'*50)
+    print(f'expanded_train_df: {expanded_train_df}')
 
 
 def main():
     parser = argparse.ArgumentParser(description="Process raw relational data into an intermediate format for graph construction.")
-    parser.add_argument('--dataset', type=str, default='rel-amazon', help="Name of the dataset to process (e.g., 'rel-amazon').")
+    parser.add_argument('--base_data_path', type=str, default=r'data\1_raw', help="Name of the dataset to process (e.g., 'rel-amazon').")
+    parser.add_argument('--output_base_path', type=str, default=r'data\2_intermediate', help="Name of the predictive task")
     parser.add_argument('--time_window', type=str, default='-6mo', help="Time window for aggregating historical data (e.g., '-3mo', '-1y').")
-    parser.add_argument('--task', type=str, default='user-churn', help="Name of the predictive task")
-    parser.add_argument('--n_examples', type=int, default=100, help="Number of examples to generate")
+    parser.add_argument('--n_examples', type=int, default=5, help="Number of examples to generate")
     args = parser.parse_args()
 
-    # Construct paths based on the dataset argument
-    base_data_path = 'data/1_raw'
-    output_base_path = 'data/2_intermediate'
+    args.dataset = 'rel-amazon'
+    args.task = 'user-churn'
     
-    db_path = os.path.join(base_data_path, args.dataset, 'db')
-    tasks_path = os.path.join(base_data_path, args.dataset, 'tasks')
-    output_path_product = os.path.join(output_base_path, args.dataset, 'db', 'productId_processed_category.csv')
-    output_path_training_table = os.path.join(output_base_path, args.dataset, args.task,'single_categories_string.csv')
+    db_path = os.path.join(args.base_data_path, args.dataset, 'db')
+    tasks_path = os.path.join(args.base_data_path, args.dataset, 'tasks')
+    output_path_product = os.path.join(args.output_base_path, args.dataset, 'db', 'productId_processed_category.csv')
+    output_path_training_table = os.path.join(args.output_base_path, args.dataset, args.task,'single_categories_string.csv')
 
     expanded_train_df = generate_intermediate_train_table(db_path, tasks_path, time_window = args.time_window, n_examples = args.n_examples)
     # print(f'Expanded train df: {expanded_train_df}')
