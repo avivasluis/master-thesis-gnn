@@ -4,10 +4,24 @@ from src.models.gcn import GCN
 from src.models.train_evaluate import train_and_evaluate
 from src.data.return_sub_graph import get_subgraph_first_n_nodes
 import os
+import json
 
 def main(args):
     print(f"Start training")
     val_f1, val_auc, _, _ = train_and_evaluate(args.model, args.data, test_data = args.test_data ,print_flag = args.print_flag, log_file=args.log_file)
+    
+    if args.log_file:
+        results = {
+            'graph_name': args.graph,
+            'val_f1': val_f1,
+            'val_auc': val_auc,
+        }
+        
+        # Derive json path from log_file path
+        json_file_path = os.path.splitext(args.log_file)[0] + '.json'
+        with open(json_file_path, 'w') as f:
+            json.dump(results, f, indent=4)
+        print(f"Results dictionary saved to {json_file_path}")
     
 
 if __name__ == '__main__':
@@ -23,7 +37,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     args.hidden_channels = 128
-    args.log_file = f'results/rel-amazon/tasks/user-churn/common_purchased_categories_by_string/{args.log_file_name}'
+    if args.log_file_name != 'None':
+        args.log_file = f'results/rel-amazon/tasks/user-churn/common_purchased_categories_by_string/{args.log_file_name}'
+    else:
+        args.log_file = None
+        
     processed_graph_path = f'{args.data_path}/3_processed/rel-amazon/tasks/user-churn/common_purchased_categories_by_string/{args.graph}'
 
     if args.n_nodes == -1:
