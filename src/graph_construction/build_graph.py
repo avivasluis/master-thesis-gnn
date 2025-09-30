@@ -93,7 +93,7 @@ def main(args):
     x = create_node_feature_table(edge_index, n_nodes)
     y = torch.tensor(train['churn'].values, dtype=torch.long)
     masks = data_partition(train.index)
-    data = Data(x=x.to(torch.float), edge_index=edge_index, y=y, n_nodes = len(train), masks = masks)
+    data = Data(x=x.to(torch.float), edge_index=edge_index, y=y, masks = masks)
 
     # print(f'data object: {data}')
 
