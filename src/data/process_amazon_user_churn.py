@@ -161,7 +161,7 @@ def main():
     db_path = os.path.join(args.base_data_path, args.dataset, 'db')
     tasks_path = os.path.join(args.base_data_path, args.dataset, 'tasks')
     output_path_product = os.path.join(args.output_base_path, args.dataset, 'db', 'productId_processed_category.csv')
-    output_path_training_table = os.path.join(args.output_base_path, args.dataset, args.task,'single_categories_string.csv')
+    output_path_training_table = os.path.join(args.output_base_path, args.dataset, 'tasks', args.task,'single_categories_string.csv')
 
     expanded_train_df = generate_intermediate_train_table(db_path, tasks_path, time_window = args.time_window, n_examples = args.n_examples)
     # print(f'Expanded train df: {expanded_train_df}')
