@@ -40,10 +40,21 @@ if __name__ == '__main__':
     parser.add_argument('graph', type=str, help = 'Name of the file that stores the PyG Data object')
     parser.add_argument('--n_nodes', type=int, default = 50, help = 'Number of nodes to return from the complete graph. -1 to use the complete graph')
     parser.add_argument('--data_path', type=str, default='data', help='Path to the data directory')
-    parser.add_argument('--print_flag', type=bool, default='False', help='')
-    parser.add_argument('--test_data', type=bool, default='False', help='')
+    parser.add_argument('--print_flag_str', type=str, default='False', help='')
+    parser.add_argument('--test_data_str', type=str, default='False', help='')
     parser.add_argument('--log_file_name', type=str, default='None', help='Name of the file to save results.')
     args = parser.parse_args()
+
+    if args.print_flag_str == 'False' or 'false':
+        args.print_flag = False
+    else:
+        args.print_flag = True
+
+    if args.test_data_str == 'False' or 'false':
+        args.test_data = False
+    else:
+        args.test_data = True
+
 
     args.hidden_channels = 128
     if args.log_file_name != 'None':

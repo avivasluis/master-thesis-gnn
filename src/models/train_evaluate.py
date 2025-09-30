@@ -37,7 +37,7 @@ def train_and_evaluate(model, data, early_stop_patience = 15, test_data = False,
     def custom_print(message):
         if print_flag:
             print(message)
-            
+
         if log_f:
             log_f.write(str(message) + '\n')
 
@@ -63,26 +63,23 @@ def train_and_evaluate(model, data, early_stop_patience = 15, test_data = False,
         train_loss = train_loop(model, optimizer, criterion, data, masks)
         val_acc, val_f1, val_auc, true_labels, pred_labels = test(masks['val_mask'], model, data)
 
-        if print_flag:
-            custom_print("*" * 92)
-            custom_print(f'Epoch: {epoch:03d} | Loss: {train_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}, Val AUROC: {val_auc:.4f}')
+        
+        custom_print("*" * 92)
+        custom_print(f'Epoch: {epoch:03d} | Loss: {train_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}, Val AUROC: {val_auc:.4f}')
 
         if val_auc > best_val_auc:
-            if print_flag:
-                custom_print(f'\tEpoch: {epoch:03d} | Validation  improved from {best_val_auc:.6f} to {val_auc:.6f} in epoch {epoch:03d}')
+            custom_print(f'\tEpoch: {epoch:03d} | Validation  improved from {best_val_auc:.6f} to {val_auc:.6f} in epoch {epoch:03d}')
             best_val_auc = val_auc
             best_model_state = model.state_dict()
             epochs_no_improve = 0
         else:
             epochs_no_improve += 1
-            if print_flag:
-                custom_print(f'\tEpoch: {epoch:03d} | No improvement for {epochs_no_improve}/{early_stop_patience} epochs')
+            custom_print(f'\tEpoch: {epoch:03d} | No improvement for {epochs_no_improve}/{early_stop_patience} epochs')
 
         # Check early stopping condition
         if epochs_no_improve >= early_stop_patience:
-            if print_flag:
-                custom_print(f"Early stopping triggered after {epoch} epochs!")
-                custom_print("*" * 92)
+            custom_print(f"Early stopping triggered after {epoch} epochs!")
+            custom_print("*" * 92)
             break
 
     # Load the best model
