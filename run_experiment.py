@@ -8,14 +8,23 @@ import json
 
 def main(args):
     print(f"Start training")
-    val_f1, val_auc, _, _ = train_and_evaluate(args.model, args.data, test_data = args.test_data ,print_flag = args.print_flag, log_file=args.log_file)
+    if args.test_data:
+        test_f1, test_auc, _, _ = train_and_evaluate(args.model, args.data, test_data = args.test_data ,print_flag = args.print_flag, log_file=args.log_file)
+        if args.log_file:
+            results = {
+                'graph_name': args.graph,
+                'test_f1': test_f1,
+                'test_auc': test_auc,
+            }
     
-    if args.log_file:
-        results = {
-            'graph_name': args.graph,
-            'val_f1': val_f1,
-            'val_auc': val_auc,
-        }
+    else:
+        val_f1, val_auc, _, _ = train_and_evaluate(args.model, args.data, test_data = args.test_data ,print_flag = args.print_flag, log_file=args.log_file)
+        if args.log_file:
+            results = {
+                'graph_name': args.graph,
+                'val_f1': val_f1,
+                'val_auc': val_auc,
+            }
         
         # Derive json path from log_file path
         json_file_path = os.path.splitext(args.log_file)[0] + '.json'

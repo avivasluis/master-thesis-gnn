@@ -68,7 +68,7 @@ def train_and_evaluate(model, data, early_stop_patience = 15, test_data = False,
 
         if val_auc > best_val_auc:
             if print_flag:
-                custom_print(f'\tEpoch: {epoch:03d} | Validation  improved from {best_val_auc:.2f} to {val_auc:.2f} in epoch {epoch:03d}')
+                custom_print(f'\tEpoch: {epoch:03d} | Validation  improved from {best_val_auc:.6f} to {val_auc:.6f} in epoch {epoch:03d}')
             best_val_auc = val_auc
             best_model_state = model.state_dict()
             epochs_no_improve = 0
