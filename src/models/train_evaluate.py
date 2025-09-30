@@ -30,13 +30,14 @@ def train_and_evaluate(model, data, early_stop_patience = 15, test_data = False,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     log_f = None
-    if log_file and print_flag:
+    if log_file:
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
         log_f = open(log_file, 'w')
 
     def custom_print(message):
         if print_flag:
             print(message)
+            
         if log_f:
             log_f.write(str(message) + '\n')
 

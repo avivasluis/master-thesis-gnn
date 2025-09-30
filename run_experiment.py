@@ -18,7 +18,7 @@ def main(args):
             }
     
     else:
-        val_f1, val_auc, _, _ = train_and_evaluate(args.model, args.data, test_data = args.test_data ,print_flag = args.print_flag, log_file=args.log_file)
+        val_f1, val_auc, _, _ = train_and_evaluate(args.model, args.data, test_data = args.test_data ,print_flag = args.print_flag, log_file = args.log_file)
         if args.log_file:
             results = {
                 'graph_name': args.graph,
