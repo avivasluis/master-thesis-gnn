@@ -33,7 +33,7 @@ def get_subgraph_first_n_nodes(data: Data, n_nodes: int):
     edge_index = data.edge_index[:, edge_mask]
 
     degrees = degree(edge_index[0], num_nodes=n_nodes, dtype=torch.long)
-    subgraph_data.x = F.one_hot(degrees)
+    subgraph_data.x = F.one_hot(degrees).to(torch.float)
 
     subgraph_data.y = data.y[:n_nodes]
 
