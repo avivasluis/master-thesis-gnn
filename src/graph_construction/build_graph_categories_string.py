@@ -57,6 +57,7 @@ def create_node_feature_table(edge_index, n_nodes):
     x = F.one_hot(degrees)
     return x
 
+
 def data_partition(nodes_id):
     train_len = int(len(nodes_id)*0.8)
     val_len = int(len(nodes_id)*0.1)

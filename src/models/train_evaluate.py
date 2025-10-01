@@ -1,7 +1,7 @@
 import torch
 from sklearn.metrics import f1_score, roc_auc_score
 import os
-from src.graph_construction.build_graph import return_density
+from src.graph_construction.build_graph_categories_string import return_density
 
 def train_loop(model, optimizer, criterion, data, masks):
     model.train()              # Set model to training mode

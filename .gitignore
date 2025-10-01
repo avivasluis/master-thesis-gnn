@@ -29,3 +29,6 @@ historical/
 
 # Results
 results/
+
+# Tests
+src\graph_construction\*.ipynb
