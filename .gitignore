@@ -1,8 +1,5 @@
 # Data files
-data/1_raw/
-data/2_intermediate/
-data/3_processed/
-data/*.zip
+data/
 
 # Notebook checkpoints
 .ipynb_checkpoints/
@@ -18,17 +15,11 @@ __pycache__/
 # Local documentation and chat exports
 cursor-chats-exports/
 
-#Test notebooks
-*test*.ipynb
-
-# Local tests
-test.ipynb
-
 # Historical
 historical/
 
+# Notebooks
+notebooks/
+
 # Results
 results/
-
-# Tests
-src/graph_construction/*.ipynb
