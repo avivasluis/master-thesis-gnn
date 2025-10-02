@@ -15,15 +15,11 @@ __pycache__/
 .vscode/
 .idea/
 
-# Reports - assuming they are generated
-reports/*.pdf
-reports/*.html
-
 # Local documentation and chat exports
 cursor-chats-exports/
 
 # Local tests
-*.ipynb
+test.ipynb
 
 # Historical
 historical/
