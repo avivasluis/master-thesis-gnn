@@ -18,6 +18,9 @@ __pycache__/
 # Local documentation and chat exports
 cursor-chats-exports/
 
+#Test notebooks
+*test*.ipynb
+
 # Local tests
 test.ipynb
 
@@ -28,4 +31,4 @@ historical/
 results/
 
 # Tests
-src\graph_construction\*.ipynb
+src/graph_construction/*.ipynb
