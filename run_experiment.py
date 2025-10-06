@@ -39,8 +39,8 @@ if __name__ == '__main__':
     # Arguments for data, model, training etc.
     parser.add_argument('graph', type=str, help = 'Name of the file that stores the PyG Data object')
     parser.add_argument('--n_nodes', type=int, default = 50, help = 'Number of nodes to return from the complete graph. -1 to use the complete graph')
-    parser.add_argument('--data_path', type=str, default='data', help='Path to the data directory')
-    parser.add_argument('--experiment_name', type=str, default='common_purchased_categories_by_string', help='Name of the experiment')
+    #parser.add_argument('--data_path', type=str, default='data', help='Path to the data directory')
+    #parser.add_argument('--experiment_name', type=str, default='common_purchased_categories_by_string', help='Name of the experiment')
     parser.add_argument('--print_flag_str', type=str, default='False', help='')
     parser.add_argument('--test_data_str', type=str, default='False', help='')
     parser.add_argument('--log_file_name', type=str, default='None', help='Name of the file to save results.')
@@ -59,11 +59,11 @@ if __name__ == '__main__':
 
     args.hidden_channels = 128
     if args.log_file_name != 'None':
-        args.log_file = f'results/rel-amazon/tasks/user-churn/{args.experiment_name}/{args.log_file_name}'
+        args.log_file = f'{args.log_file_name}'
     else:
         args.log_file = None
         
-    processed_graph_path = f'{args.data_path}/3_processed/rel-amazon/tasks/user-churn/{args.experiment_name}/{args.graph}'
+    processed_graph_path = f'{args.graph}'
 
     if args.n_nodes == -1:
         args.data = torch.load(processed_graph_path, weights_only=False)
