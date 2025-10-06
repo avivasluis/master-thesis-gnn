@@ -32,7 +32,7 @@ def create_edge_index(train, threshold):
 
 def create_node_feature_table(edge_index, n_nodes):
     degrees = degree(edge_index[0], num_nodes=n_nodes, dtype=torch.long)
-    x = F.one_hot(degrees)
+    x = F.one_hot(degrees).to(torch.float)
     return x
 
 def main(args):
@@ -52,7 +52,7 @@ def main(args):
     print(f'density: \n{density:.4f}% \n')
     x = create_node_feature_table(edge_index, n_nodes)
     y = torch.tensor(train['churn'].values, dtype=torch.long)
-    data = Data(x=x.to(torch.float), edge_index=edge_index, y=y)
+    data = Data(x=x, edge_index=edge_index, y=y)
 
     print(f'Data object: \n{data}\n')
 
