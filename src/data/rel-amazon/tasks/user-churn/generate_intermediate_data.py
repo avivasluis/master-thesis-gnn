@@ -97,7 +97,7 @@ def main(args):
 
     print('*'*50)
     print(f'\n PRODUCT_PRODUCT_ID -> \n {product_product_id.collect()}')
-    save_data_csv(product_product_id, 'product_product_id', args.output_path)
+    save_data_csv(product_product_id, 'product_id', args.output_path)
 
     data_columns = ['title', 'brand', 'description', 'price', 'category']
     expanded_train_foreign_keys = product_product_id
@@ -114,7 +114,7 @@ def main(args):
     review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
     print('*'*50)
     print(f'\n review_review_id -> \n {review_review_id.collect()}')
-    save_data_csv(review_review_id, 'review_review_id', args.output_path)
+    save_data_csv(review_review_id, 'review_id', args.output_path)
 
     if args.kaggle:
         data_columns = ['review_text', 'summary', 'rating', 'verified']
