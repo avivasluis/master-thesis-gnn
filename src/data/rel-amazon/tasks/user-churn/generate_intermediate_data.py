@@ -2,7 +2,7 @@ import argparse
 import polars as pl
 import os
 
-def expand_train_df_text_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column):
+def expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column):
     temp_df = (
     expanded_train_foreign_keys.select(['node_id', foreign_key])
     .explode(foreign_key)
@@ -17,15 +17,15 @@ def expand_train_df_text_field(expanded_train_foreign_keys, foreign_key, dimenti
         )
     )
 
-    print('*'*50)
-    print(f'\n TEMP_DF -> \n {temp_df.collect()}')
+    #print('*'*50)
+    #print(f'\n TEMP_DF -> \n {temp_df.collect()}')
 
     # Join the 'product_titles' column back to the original dataframe
     result = expanded_train_foreign_keys.join(
         temp_df,
         on='node_id',
         how='left'
-    ).with_columns(pl.col(f'{foreign_key}_{data_column}').list.first())
+    ).sort('node_id')
 
     print('*'*50)
     print(f'\n RESULT_DF -> \n {result.collect()}')
@@ -97,12 +97,38 @@ def main(args):
 
     print('*'*50)
     print(f'\n PRODUCT_PRODUCT_ID -> \n {product_product_id.collect()}')
-
     save_data_csv(product_product_id, 'product_product_id', args.output_path)
 
-    # Product titles
-    product_title = expand_train_df_text_field(product_product_id, 'product_id', args.product_lazy, 'title')
-    #save_data_csv(product_title, 'product_title', args.output_path)
+    data_columns = ['title', 'brand', 'description', 'price', 'category']
+    expanded_train_foreign_keys = product_product_id
+    foreign_key = 'product_id'
+    dimention_table = args.product_lazy
+    name_dimention_table = 'product'
+
+    for data_column in data_columns:
+        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column)
+        save_data_csv(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
+        
+
+    # Base join for review table where I collect the list of foreign keys in the fact table inside the time_window!
+    review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
+    print('*'*50)
+    print(f'\n review_review_id -> \n {review_review_id.collect()}')
+    save_data_csv(review_review_id, 'review_review_id', args.output_path)
+
+    if args.kaggle:
+        data_columns = ['review_text', 'summary', 'rating', 'verified']
+    else:
+        data_columns = ['summary', 'rating', 'verified']
+        
+    expanded_train_foreign_keys = review_review_id
+    foreign_key = 'review_id'
+    dimention_table = args.review_lazy
+    name_dimention_table = 'review'
+
+    for data_column in data_columns:
+        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column)
+        save_data_csv(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
 
 
 if __name__ == '__main__':
@@ -110,6 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('output_path', type=str, help="Directory for output data")
     parser.add_argument('time_window', type=str, help="Time window for the processed data")    
     parser.add_argument('--base_data_path', type=str, default=r'data\1_raw', help="Directory base for /rel-amazon/")
+    parser.add_argument('--kaggle', action='store_true', help="Flag to indicate whether the script will run on kaggle or not")
     parser.add_argument('--generate_train_section', action='store_true', help="Flag to indicate whether to generate new section of the training data")
     parser.add_argument('--train_section_path', type=str, default = ' ', help="Path for reading section of the training data. Must be .parquet file")
     parser.add_argument('--sample_size', type=int, default=5000, help="Number of samples to process from the train set")
