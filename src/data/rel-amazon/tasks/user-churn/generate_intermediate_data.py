@@ -2,7 +2,7 @@ import argparse
 import polars as pl
 import os
 
-def expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column):
+def expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table):
     temp_df = (
     expanded_train_foreign_keys.select(['node_id', foreign_key])
     .explode(foreign_key)
@@ -13,7 +13,7 @@ def expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, di
     )
     .group_by('node_id', maintain_order=True)
     .agg(
-        pl.implode(data_column).alias(f'{foreign_key}_{data_column}')
+        pl.implode(data_column).alias(f'{name_dimention_table}_{data_column}')
         )
     )
 
@@ -106,7 +106,7 @@ def main(args):
     name_dimention_table = 'product'
 
     for data_column in data_columns:
-        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column)
+        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table)
         save_data_csv(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
         
 
@@ -127,7 +127,7 @@ def main(args):
     name_dimention_table = 'review'
 
     for data_column in data_columns:
-        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column)
+        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table)
         save_data_csv(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
 
 
