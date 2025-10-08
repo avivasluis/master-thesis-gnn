@@ -252,7 +252,10 @@ def main(args):
     n_nodes = len(args.train)
     n_edges = len(edge_index[0])/2
 
-    x = create_node_feature_table(edge_index, n_nodes)
+    if args.x_feature_actual_data:
+        x = data_edge_matrix
+    else:
+        x = create_node_feature_table(edge_index, n_nodes)
     y = torch.tensor(args.train['churn'].values, dtype=torch.long)
     masks = return_data_partition_masks(args.train.index)
     density = return_density(n_nodes, n_edges)
@@ -271,6 +274,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--base_data_path', type=str, default=r'data\2_intermediate\rel-amazon\tasks\user-churn', help="Directory base for all the expanded files")
     parser.add_argument('--kaggle', action='store_true', help="Flag to indicate whether the script will run on kaggle or not")
+    parser.add_argument('--x_feature_actual_data', action='store_true', help="Flag to indicate that the node feature table will hold actual data")
     parser.add_argument('--use_subsection', action='store_true', help="Flag to indicate whether generate graph using only subsection")
     parser.add_argument('--sample_size', type=int, default=5, help="Number of samples to process from the train set")
 
