@@ -119,7 +119,9 @@ def create_data_edge_matrix(train: pd.DataFrame,
     lists = train[column_name].fillna('').tolist()
 
     # 2. Flatten them and remember how many tokens each row has
-    lengths = torch.tensor([len(lst) for lst in lists], dtype=torch.long)
+    # Ensure the tensor lives on the same device as the embeddings to avoid
+    # "Expected all tensors to be on the same device" runtime errors.
+    lengths = torch.tensor([len(lst) for lst in lists], dtype=torch.long, device=device)
     flat_titles = [title for sub in lists for title in sub]
 
     # Short-circuit if the whole column is empty
