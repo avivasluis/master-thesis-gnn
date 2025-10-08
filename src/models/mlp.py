@@ -10,7 +10,7 @@ class MLP(torch.nn.Module):
         self.lin3 = Linear(hidden_channels*2, out_channels)
 
 
-    def forward(self, x):
+    def forward(self, x, _):
         x = self.lin1(x)
         x = x.relu()
         x = F.dropout(x, p=0.5, training=self.training)
