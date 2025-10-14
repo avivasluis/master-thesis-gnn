@@ -141,7 +141,7 @@ def save_data_object(data, directory_name, thrs, density, output_base_path):
     output_dir = os.path.join(output_base_path, directory_name)
     os.makedirs(output_dir, exist_ok = True)
 
-    file_name = f'thr_{thrs:.1f}__{density:.1f}%.pt'
+    file_name = f'thr_{thrs:.2f}__{density:.2f}%.pt'
 
     output_path = os.path.join(output_dir, file_name)
     torch.save(data, output_path)
