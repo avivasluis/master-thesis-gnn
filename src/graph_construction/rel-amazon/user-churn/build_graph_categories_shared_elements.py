@@ -40,7 +40,7 @@ def create_similarity_matrix(train, column_name):
         if i % 100 == 0:
             print(f"Processing row {i}/{n}")
         for j in range(i, n):
-            # 1. Number of shared unique categories
+            # 1. Number of purchases
             n_total_i = bags[i].total()
             n_total_j = bags[j].total()
 
