@@ -17,6 +17,64 @@ import torch.nn.functional as F
 
 from torch_geometric.utils import degree, to_undirected
 from torch_geometric.data import Data 
+from scipy.sparse import csr_matrix, diags
+
+
+def create_similarity_matrix_vectorized(train, column_name, similarity_map):
+    """
+    Creates a similarity matrix in a vectorized manner using sparse matrix operations.
+    """
+    # 1. Build vocabulary and user-item count matrix (U)
+    all_items = set(item for items_list in train[column_name] for item in items_list)
+    item_to_idx = {item: i for i, item in enumerate(all_items)}
+    
+    n_users = len(train)
+    n_items = len(all_items)
+    
+    rows, cols, data = [], [], []
+    for i, row in train.iterrows():
+        bag = Counter(row[column_name])
+        for item, count in bag.items():
+            if item in item_to_idx:
+                rows.append(i)
+                cols.append(item_to_idx[item])
+                data.append(count)
+    
+    U = csr_matrix((data, (rows, cols)), shape=(n_users, n_items))
+    U_bool = U.astype(bool)
+
+    # 2. Build item-item similarity matrix (S)
+    rows, cols, data = [], [], []
+    for item, idx in item_to_idx.items():
+        similar_items = similarity_map.get(item, {item})
+        for sim_item in similar_items:
+            if sim_item in item_to_idx:
+                rows.append(idx)
+                cols.append(item_to_idx[sim_item])
+                data.append(1)
+    
+    S = csr_matrix((data, (rows, cols)), shape=(n_items, n_items), dtype=bool)
+
+    # 3. Compute shared element matrices
+    V = (U_bool @ S.T).astype(bool)
+    N_i = U @ V.T
+
+    # 4. Normalize
+    n_total = np.array(U.sum(axis=1)).flatten()
+    # handle division by zero for users with no items
+    n_total_inv = np.divide(1, n_total, out=np.zeros_like(n_total, dtype=float), where=n_total!=0)
+    
+    inv_diag = diags(n_total_inv)
+    
+    M_i = inv_diag @ N_i
+    M_j = (inv_diag @ N_i.T).T
+
+    # 5. Final similarity matrix
+    similarity_matrix = np.maximum(M_i.toarray(), M_j.toarray())
+    # The original matrix was symmetric, so we ensure that here.
+    similarity_matrix = np.maximum(similarity_matrix, similarity_matrix.T)
+    
+    return similarity_matrix
 
 def special_print(var, name):
     print()
@@ -36,20 +94,25 @@ def build_similarity_map(train, data_name, min_support, min_lift):
     # 2. Initialize the TransactionEncoder
     te = TransactionEncoder()
     
-    # 3. Fit and transform the data
-    # te.fit(transactions) learns all unique categories
-    # te.transform(transactions) converts the list of lists into a boolean array
-    te_ary = te.fit(transactions).transform(transactions)
+    # 3. Fit and transform the data to a sparse matrix for memory efficiency
+    print("Fitting and transforming data to sparse matrix...")
+    te_ary = te.fit(transactions).transform(transactions, sparse=True)
     
-    # 4. Convert the array back into a pandas DataFrame
-    df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+    # 4. Convert the sparse matrix into a sparse pandas DataFrame
+    print("Converting to sparse DataFrame...")
+    df_encoded = pd.DataFrame.sparse.from_spmatrix(te_ary, columns=te.columns_)
     
-    # Display the first few rows of the one-hot encoded data
-    special_print(df_encoded.info(), 'df_encoded.info()')
-    special_print(df_encoded.head(), 'df_encoded.head()')
+    # Display info about the sparse DataFrame
+    print("="*80)
+    print("Sparse DataFrame Info:")
+    df_encoded.info()
+    print("\nDataFrame Head:")
+    print(df_encoded.head())
+    print("="*80)
     
-    # Apply the Apriori algorithm
-    frequent_itemsets = apriori(df_encoded, min_support = min_support, use_colnames=True)
+    # Apply the Apriori algorithm, which supports sparse DataFrames
+    print("Applying Apriori algorithm on sparse data...")
+    frequent_itemsets = apriori(df_encoded, min_support=min_support, use_colnames=True)
     
     # Sort by support and display the top 10 frequent itemsets
     frequent_itemsets = frequent_itemsets.sort_values(by='support', ascending=False)
@@ -235,7 +298,12 @@ def main(args):
     pprint(similarity_map)
     special_print(len(similarity_map), 'len(similarity_map)')
 
-    similarity_matrix = create_similarity_matrix(args.train, args.column_data, similarity_map)
+    if args.use_vectorized:
+        print("Using vectorized implementation for similarity matrix.")
+        similarity_matrix = create_similarity_matrix_vectorized(args.train, args.column_data, similarity_map)
+    else:
+        print("Using original implementation for similarity matrix.")
+        similarity_matrix = create_similarity_matrix(args.train, args.column_data, similarity_map)
 
     special_print(similarity_matrix, 'similarity_matrix')
     special_print(type(similarity_matrix), 'type(similarity_matrix)')
@@ -298,6 +366,7 @@ if __name__ == '__main__':
     parser.add_argument('--sample_size', type=int, default=5, help="Number of samples to process from the train set")
     parser.add_argument('--min_support', type=float, default=0.01, help="")
     parser.add_argument('--min_lift', type=float, default=1.2, help="")
+    parser.add_argument('--use_vectorized', action='store_true', help="Flag to use the vectorized version of similarity matrix calculation")
 
     args = parser.parse_args()
 
