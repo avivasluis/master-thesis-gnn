@@ -4,15 +4,16 @@ import ast
 import argparse
 import os
 import polars as pl
+from collections import Counter
+from collections import defaultdict
+from html import unescape
+from pprint import pprint
 
-import shlex
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, association_rules
 
-from typing import List, Optional
 import torch
 import torch.nn.functional as F
-from torch import Tensor
-
-from collections import Counter
 
 from torch_geometric.utils import degree, to_undirected
 from torch_geometric.data import Data 
@@ -29,7 +30,80 @@ def return_density(n_nodes, n_edges):
     density = (n_edges / n_max_edges) * 100
     return density
 
-def create_similarity_matrix(train, column_name):
+def build_similarity_map(train, data_name, min_support, min_lift):
+    transactions = train[data_name].tolist()
+    
+    # 2. Initialize the TransactionEncoder
+    te = TransactionEncoder()
+    
+    # 3. Fit and transform the data
+    # te.fit(transactions) learns all unique categories
+    # te.transform(transactions) converts the list of lists into a boolean array
+    te_ary = te.fit(transactions).transform(transactions)
+    
+    # 4. Convert the array back into a pandas DataFrame
+    df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+    
+    # Display the first few rows of the one-hot encoded data
+    special_print(df_encoded.info(), 'df_encoded.info()')
+    special_print(df_encoded.head(), 'df_encoded.head()')
+    
+    # Apply the Apriori algorithm
+    frequent_itemsets = apriori(df_encoded, min_support = min_support, use_colnames=True)
+    
+    # Sort by support and display the top 10 frequent itemsets
+    frequent_itemsets = frequent_itemsets.sort_values(by='support', ascending=False)
+    special_print(frequent_itemsets, 'Frequent Itemsets')
+
+    # Generate rules using a metric (e.g., 'lift') and a minimum threshold
+    # Let's use lift > 1.2 and sort by lift to see the strongest rules
+    rules = association_rules(frequent_itemsets, metric="lift", min_threshold = min_lift)
+    
+    # Select and rename columns for a cleaner output
+    rules = rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']]
+    
+    # Sort by lift to see the strongest associations first
+    rules = rules.sort_values(by='lift', ascending=False)
+    
+    special_print(rules, f"Association Rules (Support > {min_support}, Lift > {min_lift}):")
+    #rules.to_csv("rules.csv")
+
+    strong_pairs = set()
+
+    for _, row in rules.iterrows():
+        # Convert frozensets to a list of strings and pair them up
+        antecedents = list(row['antecedents'])
+        consequents = list(row['consequents'])
+        
+        # Store all A -> B pairs
+        for ante in antecedents:
+            for cons in consequents:
+                strong_pairs.add((ante, cons))
+                
+    print(f"Total strong directional rules found: {len(strong_pairs)}")
+    print()
+
+    similarity_map = defaultdict(set)
+
+    all_items = set() # Track all unique items encountered
+
+    for item_a, item_b in strong_pairs:
+        # A is similar to B
+        similarity_map[item_a].add(item_b)
+
+        #B is similar to A
+        similarity_map[item_b].add(item_a)
+
+        # Track all unique items
+        all_items.add(item_a)
+        all_items.add(item_b)
+
+    for item in all_items:
+        similarity_map[item].add(item)
+
+    return similarity_map
+
+def create_similarity_matrix(train, column_name, similarity_map):
     sets = [set(row) for row in train[column_name]]
     bags = [Counter(row) for row in train[column_name]]
 
@@ -40,22 +114,24 @@ def create_similarity_matrix(train, column_name):
         if i % 100 == 0:
             print(f"Processing row {i}/{n}")
         for j in range(i, n):
-            # 1. Number of purchases
             n_total_i = bags[i].total()
             n_total_j = bags[j].total()
 
             n_shared_elements_i = 0
+            for item_i, count_i in bags[i].items():
+                # An item is "shared" if its similarity group overlaps with the other user's set of items
+                similar_to_item_i = similarity_map.get(item_i, {item_i})
+                if not sets[j].isdisjoint(similar_to_item_i):
+                    n_shared_elements_i += count_i
+            
             n_shared_elements_j = 0
+            for item_j, count_j in bags[j].items():
+                similar_to_item_j = similarity_map.get(item_j, {item_j})
+                if not sets[i].isdisjoint(similar_to_item_j):
+                    n_shared_elements_j += count_j
 
-            shared_elements = sets[i] & sets[j]
-
-            if len(shared_elements) > 0:
-                for element in shared_elements:
-                    n_shared_elements_i += bags[i][element]
-                    n_shared_elements_j += bags[j][element]
-
-            Ni = n_shared_elements_i / n_total_i if n_total_i>0 else 0
-            Nj = n_shared_elements_j / n_total_j if n_total_j>0 else 0
+            Ni = n_shared_elements_i / n_total_i if n_total_i > 0 else 0
+            Nj = n_shared_elements_j / n_total_j if n_total_j > 0 else 0
             
             similarity_matrix[i, j] = max(Ni, Nj)
             similarity_matrix[j, i] = max(Ni, Nj)
@@ -153,12 +229,17 @@ def main(args):
     special_print(type(args.train[args.column_data].iloc[0]), 'type(train first row)')
     special_print(len(args.train[args.column_data].iloc[0]), 'len(train first row)')
 
-    similarity_matrix = create_similarity_matrix(args.train, args.column_data)
+    similarity_map = build_similarity_map(args.train, args.column_data, args.min_support, args.min_lift)
+
+    print(f'\nSimilarity map: -> \n')
+    pprint(similarity_map)
+    special_print(len(similarity_map), 'len(similarity_map)')
+
+    similarity_matrix = create_similarity_matrix(args.train, args.column_data, similarity_map)
 
     special_print(similarity_matrix, 'similarity_matrix')
-    special_print(similarity_matrix[0], 'similarity_matrix[0]')
-    special_print(similarity_matrix[1], 'similarity_matrix[1]')
-    special_print(similarity_matrix[2], 'similarity_matrix[2]')
+    special_print(type(similarity_matrix), 'type(similarity_matrix)')
+    special_print(similarity_matrix.shape, 'similarity_matrix.shape')
 
     n_nodes = len(args.train)
     
@@ -188,16 +269,16 @@ def main(args):
     special_print(edge_index.shape, 'edge_index.shape')
     special_print(density, 'final_density')
 
-    x = create_node_feature_table(edge_index, n_nodes)
+    #x = create_node_feature_table(edge_index, n_nodes)
 
-    y = torch.tensor(args.train['churn'].values, dtype=torch.long)
-    masks = return_data_partition_masks(args.train.index)
-    density = return_density(n_nodes, n_edges)
+    #y = torch.tensor(args.train['churn'].values, dtype=torch.long)
+    #masks = return_data_partition_masks(args.train.index)
+    #density = return_density(n_nodes, n_edges)
 
-    data = Data(x = x, edge_index = edge_index, y = y, masks = masks, density = round(density,2))
+    #data = Data(x = x, edge_index = edge_index, y = y, masks = masks, density = round(density,2))
 
-    save_data_object(data, f'{args.column_data}', best_threshold, density, args.output_path)
-    special_print(data, 'data')
+    #save_data_object(data, f'{args.column_data}', best_threshold, density, args.output_path)
+    #special_print(data, 'data')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process expanded training data into a graph using a feature.")
@@ -215,6 +296,8 @@ if __name__ == '__main__':
     parser.add_argument('--x_feature_actual_data', action='store_true', help="Flag to indicate that the node feature table will hold actual data")
     parser.add_argument('--use_subsection', action='store_true', help="Flag to indicate whether generate graph using only subsection")
     parser.add_argument('--sample_size', type=int, default=5, help="Number of samples to process from the train set")
+    parser.add_argument('--min_support', type=float, default=0.01, help="")
+    parser.add_argument('--min_lift', type=float, default=1.2, help="")
 
     args = parser.parse_args()
 
@@ -223,10 +306,12 @@ if __name__ == '__main__':
     if args.use_subsection:
         #args.train = pd.read_csv(train_file, converters={args.column_data: parse_string_list}, index_col=0).head(args.sample_size)
         args.train = pd.read_csv(train_file, index_col=0).head(args.sample_size)
+        args.train[args.column_data] = args.train[args.column_data].apply(unescape)
         args.train[args.column_data] = args.train[args.column_data].apply(ast.literal_eval)
     else:
         #args.train = pd.read_csv(train_file, converters={args.column_data: parse_string_list}, index_col=0)
         args.train = pd.read_csv(train_file, index_col=0)
+        args.train[args.column_data] = args.train[args.column_data].apply(unescape)
         args.train[args.column_data] = args.train[args.column_data].apply(ast.literal_eval)
 
     os.makedirs(args.output_path, exist_ok=True)
