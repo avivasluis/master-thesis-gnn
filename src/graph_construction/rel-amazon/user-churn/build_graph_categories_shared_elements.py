@@ -102,13 +102,15 @@ def build_similarity_map(train, data_name, min_support, min_lift):
 
     df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
 
-    special_print(df_encoded.head(), 'df_encoded.head()')
+    #special_print(df_encoded.head(), 'df_encoded.head()')
+    print('encoded head check')
 
     frequent_itemsets = apriori(df_encoded, min_support = min_support, use_colnames=True)
 
     frequent_itemsets = frequent_itemsets.sort_values(by='support', ascending=False)
 
-    special_print(frequent_itemsets.head(), 'frequent_itemsets.head()')
+    #special_print(frequent_itemsets.head(), 'frequent_itemsets.head()')
+    print('frequent_itemsets check')
 
     rules = association_rules(frequent_itemsets, metric="lift", min_threshold = min_lift)
 
@@ -119,7 +121,8 @@ def build_similarity_map(train, data_name, min_support, min_lift):
     special_print(min_support, 'min_support')
     special_print(min_lift, 'min_lift')
 
-    special_print(rules.head(), 'rules.head()')
+    #special_print(rules.head(), 'rules.head()')
+    print('rules check')
 
     strong_pairs = set()
 
@@ -153,6 +156,7 @@ def build_similarity_map(train, data_name, min_support, min_lift):
 
         
     #special_print(similarity_map, 'similarity_map', use_pprint = True)
+    print('similarity_map check')
     
     return similarity_map
 
@@ -291,10 +295,10 @@ def save_data_object(data, directory_name, thrs, density, output_base_path):
     print(f'Saved: {directory_name}/{file_name}')
 
 def main(args):
-    special_print(args.train, 'train')
-    special_print(args.train[args.column_data].iloc[0], 'train first row')
-    special_print(type(args.train[args.column_data].iloc[0]), 'type(train first row)')
-    special_print(len(args.train[args.column_data].iloc[0]), 'len(train first row)')
+    #special_print(args.train, 'train')
+    #special_print(args.train[args.column_data].iloc[0], 'train first row')
+    #special_print(type(args.train[args.column_data].iloc[0]), 'type(train first row)')
+    #special_print(len(args.train[args.column_data].iloc[0]), 'len(train first row)')
 
     similarity_map = build_similarity_map(args.train, args.column_data, args.min_support, args.min_lift)
 
@@ -310,9 +314,10 @@ def main(args):
         print("Using original implementation for similarity matrix.")
         similarity_matrix = create_similarity_matrix(args.train, args.column_data, similarity_map)
 
+    print('similarity matrix checked!')
     #special_print(similarity_matrix, 'similarity_matrix')
-    special_print(type(similarity_matrix), 'type(similarity_matrix)')
-    special_print(similarity_matrix.shape, 'similarity_matrix.shape')
+    #special_print(type(similarity_matrix), 'type(similarity_matrix)')
+    #special_print(similarity_matrix.shape, 'similarity_matrix.shape')
 
     #n_nodes = len(args.train)
     
