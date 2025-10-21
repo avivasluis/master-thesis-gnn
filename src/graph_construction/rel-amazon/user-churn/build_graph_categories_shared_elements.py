@@ -76,11 +76,16 @@ def create_similarity_matrix_vectorized(train, column_name, similarity_map):
     
     return similarity_matrix
 
-def special_print(var, name):
+def special_print(var, name, use_pprint = False):
     print()
     print('_'*150)
-    print(f'\n {name} -> \n{var}\n')
-    print('_'*150)
+    if use_pprint:
+        print(f'\n {name} -> \n\n')
+        pprint(var)
+        print()
+    else:
+        print(f'\n {name} -> \n\n{var}\n')
+    print('-'*150)
     print()
 
 def return_density(n_nodes, n_edges):
@@ -90,62 +95,44 @@ def return_density(n_nodes, n_edges):
 
 def build_similarity_map(train, data_name, min_support, min_lift):
     transactions = train[data_name].tolist()
-    
-    # 2. Initialize the TransactionEncoder
-    te = TransactionEncoder()
-    
-    # 3. Fit and transform the data to a sparse matrix for memory efficiency
-    print("Fitting and transforming data to sparse matrix...")
-    te_ary = te.fit(transactions).transform(transactions, sparse=True)
-    
-    # 4. Convert the sparse matrix into a sparse pandas DataFrame
-    print("Converting to sparse DataFrame...")
-    df_encoded = pd.DataFrame.sparse.from_spmatrix(te_ary, columns=te.columns_)
-    
-    # Display info about the sparse DataFrame
-    print("="*80)
-    print("Sparse DataFrame Info:")
-    df_encoded.info()
-    print("\nDataFrame Head:")
-    print(df_encoded.head())
-    print("="*80)
-    
-    # Apply the Apriori algorithm, which supports sparse DataFrames
-    print("Applying Apriori algorithm on sparse data...")
-    frequent_itemsets = apriori(df_encoded, min_support=min_support, use_colnames=True)
-    
-    # Sort by support and display the top 10 frequent itemsets
-    frequent_itemsets = frequent_itemsets.sort_values(by='support', ascending=False)
-    special_print(frequent_itemsets, 'Frequent Itemsets')
 
-    # Generate rules using a metric (e.g., 'lift') and a minimum threshold
-    # Let's use lift > 1.2 and sort by lift to see the strongest rules
+    te = TransactionEncoder()
+
+    te_ary = te.fit(transactions).transform(transactions)
+
+    df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+
+    special_print(df_encoded.head(), 'df_encoded.head()')
+
+    frequent_itemsets = apriori(df_encoded, min_support = min_support, use_colnames=True)
+
+    frequent_itemsets = frequent_itemsets.sort_values(by='support', ascending=False)
+
+    special_print(frequent_itemsets, 'frequent_itemsets')
+
     rules = association_rules(frequent_itemsets, metric="lift", min_threshold = min_lift)
-    
-    # Select and rename columns for a cleaner output
+
     rules = rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']]
-    
-    # Sort by lift to see the strongest associations first
+
     rules = rules.sort_values(by='lift', ascending=False)
-    
-    special_print(rules, f"Association Rules (Support > {min_support}, Lift > {min_lift}):")
-    #rules.to_csv("rules.csv")
+
+    special_print(min_support, 'min_support')
+    special_print(min_lift, 'min_lift')
+
+    special_print(rules, 'rules')
 
     strong_pairs = set()
 
-    for _, row in rules.iterrows():
-        # Convert frozensets to a list of strings and pair them up
+    for index, row in rules.iterrows():
         antecedents = list(row['antecedents'])
         consequents = list(row['consequents'])
         
-        # Store all A -> B pairs
         for ante in antecedents:
             for cons in consequents:
                 strong_pairs.add((ante, cons))
                 
-    print(f"Total strong directional rules found: {len(strong_pairs)}")
-    print()
-
+    special_print(len(strong_pairs), 'Total strong directional rules found')
+    
     similarity_map = defaultdict(set)
 
     all_items = set() # Track all unique items encountered
@@ -164,22 +151,22 @@ def build_similarity_map(train, data_name, min_support, min_lift):
     for item in all_items:
         similarity_map[item].add(item)
 
+        
+    special_print(similarity_map, 'similarity_map', use_pprint = True)
+    
     return similarity_map
 
-def create_similarity_matrix(train, column_name, similarity_map):
-    sets = [set(row) for row in train[column_name]]
-    bags = [Counter(row) for row in train[column_name]]
-
+def create_similarity_matrix(train, data_name, similarity_map):
+    sets = [set(row) for row in train[data_name]]
+    bags = [Counter(row) for row in train[data_name]]
     n = len(sets)
     similarity_matrix = np.zeros((n, n), dtype=float)
-
     for i in range(n):
         if i % 100 == 0:
             print(f"Processing row {i}/{n}")
         for j in range(i, n):
             n_total_i = bags[i].total()
             n_total_j = bags[j].total()
-
             n_shared_elements_i = 0
             for item_i, count_i in bags[i].items():
                 # An item is "shared" if its similarity group overlaps with the other user's set of items
@@ -192,12 +179,29 @@ def create_similarity_matrix(train, column_name, similarity_map):
                 similar_to_item_j = similarity_map.get(item_j, {item_j})
                 if not sets[i].isdisjoint(similar_to_item_j):
                     n_shared_elements_j += count_j
-
+                    
             Ni = n_shared_elements_i / n_total_i if n_total_i > 0 else 0
             Nj = n_shared_elements_j / n_total_j if n_total_j > 0 else 0
-            
-            similarity_matrix[i, j] = max(Ni, Nj)
-            similarity_matrix[j, i] = max(Ni, Nj)
+
+            #similarity_score = min(Ni, Nj)
+            #similarity_score = max(Ni, Nj)
+            similarity_score = (Ni + Nj) / 2
+
+            similarity_matrix[i, j] = similarity_score
+            similarity_matrix[j, i] = similarity_score
+
+            #if agg == 'max':
+            #    special_print(agg,'similarity_matrix_agg: max')
+            #    similarity_matrix[i, j] = max(Ni, Nj)
+            #    similarity_matrix[j, i] = max(Ni, Nj)
+            #elif agg == 'min':
+            #    special_print(agg,'similarity_matrix_agg: min')
+            #    similarity_matrix[i, j] = min(Ni, Nj)
+            #    similarity_matrix[j, i] = min(Ni, Nj)
+            #elif agg == 'mean':
+            #    special_print(agg,'similarity_matrix_agg: mean')
+            #   similarity_matrix[i, j] = (Ni + Nj)/2
+            #   similarity_matrix[j, i] = (Ni + Nj)/2
 
     return similarity_matrix
 
@@ -294,13 +298,14 @@ def main(args):
 
     similarity_map = build_similarity_map(args.train, args.column_data, args.min_support, args.min_lift)
 
-    print(f'\nSimilarity map: -> \n')
-    pprint(similarity_map)
-    special_print(len(similarity_map), 'len(similarity_map)')
+    #print(f'\nSimilarity map: -> \n')
+    #pprint(similarity_map)
+    #special_print(len(similarity_map), 'len(similarity_map)')
 
     if args.use_vectorized:
-        print("Using vectorized implementation for similarity matrix.")
-        similarity_matrix = create_similarity_matrix_vectorized(args.train, args.column_data, similarity_map)
+        pass
+    #    print("Using vectorized implementation for similarity matrix.")
+    #    similarity_matrix = create_similarity_matrix_vectorized(args.train, args.column_data, similarity_map)
     else:
         print("Using original implementation for similarity matrix.")
         similarity_matrix = create_similarity_matrix(args.train, args.column_data, similarity_map)
@@ -309,33 +314,33 @@ def main(args):
     special_print(type(similarity_matrix), 'type(similarity_matrix)')
     special_print(similarity_matrix.shape, 'similarity_matrix.shape')
 
-    n_nodes = len(args.train)
+    #n_nodes = len(args.train)
     
-    if args.thr is not None:
-        best_threshold = args.thr
-        print(f"Using fixed threshold: {best_threshold}")
-    else:
-        best_threshold = find_threshold_for_target_density(
-            similarity_matrix, 
-            n_nodes, 
-            args.target_density,
-            tolerance=args.density_tolerance,
-            max_iter=args.max_iter_search
-        )
+    #if args.thr is not None:
+    #    best_threshold = args.thr
+    #    print(f"Using fixed threshold: {best_threshold}")
+    #else:
+    #    best_threshold = find_threshold_for_target_density(
+    #        similarity_matrix, 
+    #        n_nodes, 
+    #        args.target_density,
+    #        tolerance=args.density_tolerance,
+    #        max_iter=args.max_iter_search
+    #    )
 
-    edge_index = build_edge_index(similarity_matrix, best_threshold)
+    #edge_index = build_edge_index(similarity_matrix, best_threshold)
 
-    n_edges = edge_index.shape[1] / 2
+    #n_edges = edge_index.shape[1] / 2
 
-    density = return_density(n_nodes, n_edges)
+    #density = return_density(n_nodes, n_edges)
 
-    if args.target_density:
-        special_print(args.target_density, 'target_density')
+    #if args.target_density:
+    #    special_print(args.target_density, 'target_density')
         
-    special_print(best_threshold, 'best_threshold')
-    special_print(edge_index, 'edge_index')
-    special_print(edge_index.shape, 'edge_index.shape')
-    special_print(density, 'final_density')
+    #special_print(best_threshold, 'best_threshold')
+    #special_print(edge_index, 'edge_index')
+    #special_print(edge_index.shape, 'edge_index.shape')
+    #special_print(density, 'final_density')
 
     #x = create_node_feature_table(edge_index, n_nodes)
 
