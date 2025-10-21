@@ -108,7 +108,7 @@ def build_similarity_map(train, data_name, min_support, min_lift):
 
     frequent_itemsets = frequent_itemsets.sort_values(by='support', ascending=False)
 
-    special_print(frequent_itemsets, 'frequent_itemsets')
+    special_print(frequent_itemsets.head(), 'frequent_itemsets.head()')
 
     rules = association_rules(frequent_itemsets, metric="lift", min_threshold = min_lift)
 
@@ -119,7 +119,7 @@ def build_similarity_map(train, data_name, min_support, min_lift):
     special_print(min_support, 'min_support')
     special_print(min_lift, 'min_lift')
 
-    special_print(rules, 'rules')
+    special_print(rules.head(), 'rules.head()')
 
     strong_pairs = set()
 
@@ -152,7 +152,7 @@ def build_similarity_map(train, data_name, min_support, min_lift):
         similarity_map[item].add(item)
 
         
-    special_print(similarity_map, 'similarity_map', use_pprint = True)
+    #special_print(similarity_map, 'similarity_map', use_pprint = True)
     
     return similarity_map
 
@@ -310,7 +310,7 @@ def main(args):
         print("Using original implementation for similarity matrix.")
         similarity_matrix = create_similarity_matrix(args.train, args.column_data, similarity_map)
 
-    special_print(similarity_matrix, 'similarity_matrix')
+    #special_print(similarity_matrix, 'similarity_matrix')
     special_print(type(similarity_matrix), 'type(similarity_matrix)')
     special_print(similarity_matrix.shape, 'similarity_matrix.shape')
 
