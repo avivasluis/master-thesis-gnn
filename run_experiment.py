@@ -2,6 +2,7 @@ import argparse
 import torch
 from src.models.gcn import GCN 
 from src.models.mlp import MLP 
+from src.models.gin import GIN 
 from src.models.train_evaluate import train_and_evaluate
 from src.data.return_sub_graph import get_subgraph_first_n_nodes
 import os
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_nodes', type=int, default = 50, help = 'Number of nodes to return from the complete graph. -1 to use the complete graph')
     #parser.add_argument('--data_path', type=str, default='data', help='Path to the data directory')
     #parser.add_argument('--experiment_name', type=str, default='common_purchased_categories_by_string', help='Name of the experiment')
-    parser.add_argument('--MLP', action='store_true', help="Flag to indicate to use the MLP model")
+    parser.add_argument('--GNN_model', type=str, default='GCN', help='')
     parser.add_argument('--print_flag_str', type=str, default='False', help='')
     parser.add_argument('--test_data_str', type=str, default='False', help='')
     parser.add_argument('--log_file_name', type=str, default='None', help='Name of the file to save results.')
@@ -76,12 +77,16 @@ if __name__ == '__main__':
     # If the degree one-hot-encoded vector is an integer, the GCNConv Layer raises an error
     #args.data.x = args.data.x.float()
 
-    if args.MLP:
+    if args.GNN_model == 'MLP':
         args.model = MLP(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
                         out_channels=1)
-    else:
+    elif args.GNN_model == 'GCN':
         args.model = GCN(in_channels=args.data.x.shape[1], 
+                        hidden_channels=args.hidden_channels, 
+                        out_channels=1)
+    elif args.GNN_model == 'GIN':
+        args.model = GIN(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
                         out_channels=1)
 
