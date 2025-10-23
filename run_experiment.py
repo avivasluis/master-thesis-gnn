@@ -94,4 +94,6 @@ if __name__ == '__main__':
                         num_layers = args.num_layers,
                         dropout = args.dropout)
 
+    print(args.model)
+
     main(args)
