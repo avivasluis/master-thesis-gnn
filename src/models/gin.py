@@ -50,9 +50,9 @@ class GIN(torch.nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
 
         # Second layer
-        x = self.conv2(x, edge_index)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.5, training=self.training)
+        #x = self.conv2(x, edge_index)
+        #x = F.relu(x)
+        #x = F.dropout(x, p=0.5, training=self.training)
 
         # Output layer
         x = self.lin(x)
