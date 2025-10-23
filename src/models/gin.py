@@ -32,7 +32,7 @@ class GIN(torch.nn.Module):
         self.conv2 = GINConv(mlp2)
 
         # Linear readout to out_channels (e.g. 1 for binary classification)
-        self.lin = Linear(hidden_channels * 2, out_channels)
+        self.lin = Linear(hidden_channels, out_channels)
 
     def forward(self, x, edge_index):
         """Standard forward pass.
