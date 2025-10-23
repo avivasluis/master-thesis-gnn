@@ -104,5 +104,3 @@ def train_and_evaluate(model, data, early_stop_patience = 15, test_data = False,
             log_f.close()
 
         return val_f1, val_auc, true_labels, pred_labels
-
-        
