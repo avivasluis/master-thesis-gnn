@@ -51,6 +51,7 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     masks = data.masks
     data = data.to(device)
     model.to(device)
+    masks = {k: v.to(device) for k, v in masks.items()}
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     if pos_weight is not None:
@@ -65,6 +66,7 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     custom_print("*" * 92)
     custom_print('Data object: ')
     custom_print(f'{data}')
+    custom_print(f'\nDevice = {device}\n')
 
     for epoch in range(1, n_epochs + 1):
         train_loss = train_loop(model, optimizer, criterion, data, masks)
@@ -91,7 +93,7 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
 
     train_acc, train_f1, train_auc, train_true_labels, train_pred_labels = test(masks['train_mask'], model, data)
     custom_print('\nTraining Partition Results: ')
-    custom_print(f'train_acc = {train_acc:.4f} \n train_auc = {train_auc:.4f}\n')
+    custom_print(f'train_f1 = {train_f1:.4f} \n train_auc = {train_auc:.4f}\n')
 
     val_acc, val_f1, val_auc, val_true_labels, val_pred_labels = test(masks['val_mask'], model, data)
     custom_print('\nValidation Partition Results: ')
