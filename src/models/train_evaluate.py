@@ -1,6 +1,6 @@
 import copy
 import torch
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, roc_auc_score
 import os
 
 def train_loop(model, optimizer, criterion, data, masks):
@@ -32,6 +32,20 @@ def test(mask, model, data):
         except ValueError:
             auroc = float('nan')
     return acc, f1, auroc, true_np, pred_np
+
+def generate_model_report(true_labels, pred_labels, name = None):
+    report = classification_report(true_labels, pred_labels)
+    cm = confusion_matrix(true_labels, pred_labels)
+
+    if name:
+        report_str = f"Classification Report {name}:\n"
+    else:
+        report_str = "Classification Report:\n"
+    report_str += report
+    report_str += "\nConfusion Matrix:\n"
+    report_str += str(cm)
+
+    return report_str
 
 def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n_epochs=100, early_stop_patience=15, log_file=None):
 
@@ -94,18 +108,22 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     train_acc, train_f1, train_auc, train_true_labels, train_pred_labels = test(masks['train_mask'], model, data)
     custom_print('\nTraining Partition Results: ')
     custom_print(f'train_f1 = {train_f1:.4f} \n train_auc = {train_auc:.4f}\n')
+    train_report = generate_model_report(train_true_labels, train_pred_labels)
+    custom_print(train_report)
 
     val_acc, val_f1, val_auc, val_true_labels, val_pred_labels = test(masks['val_mask'], model, data)
     custom_print('\nValidation Partition Results: ')
     custom_print(f'val_f1 = {val_f1:.4f} \n val_auc = {val_auc:.4f}\n')
+    val_report = generate_model_report(val_true_labels, val_pred_labels)
+    custom_print(val_report)
 
     custom_print('\nTest Partition Results: ')
     test_acc, test_f1, test_auc, test_true_labels, test_pred_labels = test(masks['test_mask'], model, data)
     custom_print(f'test_f1 = {test_f1:.4f} \n test_auc = {test_auc:.4f}\n')
+    test_report = generate_model_report(test_true_labels, test_pred_labels)
+    custom_print(test_report)
 
     if log_f:
         log_f.close()
 
-    return (train_acc, train_f1, train_auc, train_true_labels, train_pred_labels,
-            val_acc, val_f1, val_auc, val_true_labels, val_pred_labels,
-            test_acc, test_f1, test_auc, test_true_labels, test_pred_labels)
+    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc)

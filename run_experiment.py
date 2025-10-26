@@ -20,7 +20,7 @@ def main(args):
         os.makedirs(os.path.join(args.log_file_path, args.data_column), exist_ok=True)
         log_file = os.path.join(args.log_file_path, args.data_column, args.log_file_name)
 
-    train_acc, train_f1, train_auc, train_true_labels, train_pred_labels, val_acc, val_f1, val_auc, val_true_labels, val_pred_labels, test_acc, test_f1, test_auc, test_true_labels, test_pred_labels = train_and_evaluate(
+    train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate(
         args.model, args.data,
         lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
         n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file
@@ -28,7 +28,14 @@ def main(args):
 
     results = {
         'graph_name': args.graph,
+        'num_nodes': getattr(args.data, 'num_nodes', None),
+        'num_nodes_features': getattr(args.data, 'num_node_features', None),
         'density': getattr(args.data, 'density', None),
+        'column_data': getattr(args.data, 'column_data', None),
+        'time_window': getattr(args.data, 'time_window', None),
+        'homophilly': getattr(args.data, 'homophilly', None),
+        'dataset': getattr(args.data, 'dataset', None),
+        'task': getattr(args.data, 'task', None),
         'train_acc': train_acc,
         'train_f1': train_f1,
         'train_auc': train_auc,
