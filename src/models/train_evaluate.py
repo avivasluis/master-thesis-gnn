@@ -65,7 +65,7 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     masks = data.masks
     data = data.to(device)
     model.to(device)
-    masks = {k: v.to(device) for k, v in masks.items()}
+    masks = {k: torch.as_tensor(v).to(device) for k, v in masks.items()}
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     if pos_weight is not None:
