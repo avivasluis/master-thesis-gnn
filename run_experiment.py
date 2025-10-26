@@ -5,6 +5,7 @@ from src.models.mlp import MLP
 from src.models.gin import GIN 
 from src.models.train_evaluate import train_and_evaluate
 from src.data.return_sub_graph import get_subgraph_first_n_nodes
+from src.graph_analysis.metrics import compute_density, compute_assortativity_categorical, compute_homophily_ratio
 import os
 import json
 
@@ -30,12 +31,19 @@ def main(args):
         'graph_name': args.graph,
         'num_nodes': getattr(args.data, 'num_nodes', None),
         'num_nodes_features': getattr(args.data, 'num_node_features', None),
-        'density': getattr(args.data, 'density', None),
-        'column_data': getattr(args.data, 'column_data', None),
-        'time_window': getattr(args.data, 'time_window', None),
-        'homophilly': getattr(args.data, 'homophilly', None),
-        'dataset': getattr(args.data, 'dataset', None),
-        'task': getattr(args.data, 'task', None),
+        'density': getattr(args.data, 'density', compute_density(args.data.num_nodes, args.data.num_edges/2)),
+        'assortativity': getattr(args.data, 'homophilly', compute_assortativity_categorical(args.data.edge_index, args.data.y)),
+        'homophily_ratio': getattr(args.data, 'homophily_ratio', compute_homophily_ratio(args.data.edge_index, args.data.y)),
+        'column_data': getattr(args.data, 'data_column', args.data_column),
+        'time_window': getattr(args.data, 'time_window', args.time_window),
+        'dataset': getattr(args.data, 'dataset', args.dataset),
+        'task': getattr(args.data, 'task', args.task),
+        'GNN_model': args.GNN_model ,
+        'num_layers': args.num_layers,
+        'hidden_channels': args.hidden_channels,
+        'lr': args.lr,
+        'weight_decay': args.weight_decay,
+        'dropout': args.dropout,
         'train_acc': train_acc,
         'train_f1': train_f1,
         'train_auc': train_auc,
@@ -44,7 +52,7 @@ def main(args):
         'val_auc': val_auc,
         'test_acc': test_acc,
         'test_f1': test_f1,
-        'test_auc': test_auc,
+        'test_auc': test_auc
     }
     
     if log_file:
@@ -77,6 +85,9 @@ if __name__ == '__main__':
     parser.add_argument('--log_file_path', type=str, default=None, help='Path of the file to save results (without data column)')
     parser.add_argument('--log_file_name', type=str, default=None, help='Name of the file to save results.')
     parser.add_argument('--data_column', type=str, default=None, help='Data column from which the graph was created')
+    parser.add_argument('--time_window', type=str, default='6mo', help='Time window in which the data was aggregated')
+    parser.add_argument('--dataset', type=str, default='rel-amazon', help='Dataset from which the graph was constructed')
+    parser.add_argument('--task', type=str, default='user-churn', help='Task from which the graph is constructed')
 
     args = parser.parse_args()
 
