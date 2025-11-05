@@ -30,6 +30,7 @@ def main(args):
     results = {
         'graph_name': args.graph,
         'experiment_number': args.log_file_name,
+        'experiment_name': args.experiment_name,
         'num_nodes': getattr(args.data, 'num_nodes', None),
         'num_nodes_features': getattr(args.data, 'num_node_features', None),
         'density': getattr(args.data, 'density', compute_density(args.data.num_nodes, args.data.num_edges/2)),
@@ -91,6 +92,7 @@ if __name__ == '__main__':
     parser.add_argument('--time_window', type=str, default='-6mo', help='Time window in which the data was aggregated')
     parser.add_argument('--dataset', type=str, default='rel-amazon', help='Dataset from which the graph was constructed')
     parser.add_argument('--task', type=str, default='user-churn', help='Task from which the graph is constructed')
+    parser.add_argument('--experiment_name', type=str, default='', help='Experiment from which the test is coming')
 
     args = parser.parse_args()
 
