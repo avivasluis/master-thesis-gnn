@@ -1,5 +1,7 @@
 import argparse
 import torch
+import numpy as np
+import random
 from src.models.gcn import GCN 
 from src.models.mlp import MLP 
 from src.models.gin import GIN 
@@ -8,6 +10,17 @@ from src.data.return_sub_graph import get_subgraph_first_n_nodes
 from src.graph_analysis.metrics import compute_density, compute_assortativity_categorical, compute_homophily_ratio
 import os
 import json
+
+def set_seed(seed: int):
+    """Set seed for reproducibility."""
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 def main(args):
     print()
@@ -42,6 +55,7 @@ def main(args):
         'dataset': getattr(args.data, 'dataset', args.dataset),
         'task': getattr(args.data, 'task', args.task),
         'GNN_model': args.GNN_model ,
+        'seed': args.seed,
         'num_layers': args.num_layers,
         'hidden_channels': args.hidden_channels,
         'total_params': args.total_params,
@@ -93,8 +107,11 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='rel-amazon', help='Dataset from which the graph was constructed')
     parser.add_argument('--task', type=str, default='user-churn', help='Task from which the graph is constructed')
     parser.add_argument('--experiment_name', type=str, default='', help='Experiment from which the test is coming')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility.')
 
     args = parser.parse_args()
+
+    set_seed(args.seed)
 
     if args.log_file_name != 'None':
         args.log_file = f'{args.log_file_name}'
