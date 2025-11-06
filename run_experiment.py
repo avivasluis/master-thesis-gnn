@@ -30,9 +30,9 @@ def main(args):
     print()
 
     log_file = None
-    if args.log_file_path and args.data_column and args.log_file_name:
-        os.makedirs(os.path.join(args.log_file_path, args.data_column), exist_ok=True)
-        log_file = os.path.join(args.log_file_path, args.data_column, args.log_file_name)
+    if args.log_file_path and args.log_file_name:
+        os.makedirs(args.log_file_path, exist_ok=True)
+        log_file = os.path.join(args.log_file_path, args.log_file_name)
 
     train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate(
         args.model, args.data,
