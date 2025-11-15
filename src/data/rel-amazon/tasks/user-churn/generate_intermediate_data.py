@@ -107,7 +107,7 @@ def main(args):
 
     for data_column in data_columns:
         expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table)
-        save_data_csv(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
+        save_data_parquet(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
         
 
     # Base join for review table where I collect the list of foreign keys in the fact table inside the time_window!
@@ -128,7 +128,7 @@ def main(args):
 
     for data_column in data_columns:
         expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table)
-        save_data_csv(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
+        save_data_parquet(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
 
 
 if __name__ == '__main__':
