@@ -282,17 +282,17 @@ def setup_argparser():
 
 if __name__ == "__main__":
     # Suppress Polars warnings
-    import warnings
-    warnings.filterwarnings(
-        "ignore",
-        message=".*Sortedness of columns cannot be checked.*",
-        category=UserWarning
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message=".*`is_in` with a collection of the same datatype is ambiguous.*",
-        category=pl.exceptions.PolarsDeprecatedWarning,
-    )
+    #import warnings
+    #warnings.filterwarnings(
+    #    "ignore",
+    #    message=".*Sortedness of columns cannot be checked.*",
+    #    category=UserWarning
+    #)
+    #warnings.filterwarnings(
+    #    "ignore",
+    #    message=".*`is_in` with a collection of the same datatype is ambiguous.*",
+    #    category=pl.exceptions.PolarsDeprecatedWarning,
+    #)
 
     arg_parser = setup_argparser()
     args = arg_parser.parse_args()
