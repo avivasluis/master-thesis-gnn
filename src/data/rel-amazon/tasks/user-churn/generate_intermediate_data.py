@@ -52,11 +52,11 @@ def save_data_parquet(df ,data_name, output_base_path):
     df = df.collect().to_pandas()
     df.to_parquet(output_path, index = False)
     
-    # Save preview of first 50 rows as txt log
+    # Save preview of first 50 rows as txt log (formatted like console output)
     with open(preview_path, 'w', encoding='utf-8') as f:
         f.write(f"Preview of {data_name} (first 50 rows)\n")
         f.write("="*80 + "\n\n")
-        f.write(df.head(50).to_string())
+        f.write(str(df.head(50)))
         f.write(f"\n\n{'='*80}\n")
         f.write(f"Total rows: {len(df)}\n")
         f.write(f"Total columns: {len(df.columns)}\n")
