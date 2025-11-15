@@ -86,6 +86,8 @@ def main(args):
         print(f'\n TRAINING DATA: \n {train_collected} \n')
 
         print('... done')
+    else:
+        train_lazy = args.train_lazy
 
     # Base join for product table where I collect the list of foreign keys in fact table inside the time_window!
     product_product_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'product_id', 'review_time', 'timestamp', args.time_window)
