@@ -88,16 +88,15 @@ def main(args):
         print('... done')
         
     else:
-        print("Reading data from elsewhere...")
+        print(f"Reading complete training file from: {args.train_section_path}\n")
         train_lazy = pl.scan_parquet(args.train_section_path)
-        print('...done')
 
     # Base join for product table where I collect the list of foreign keys in fact table inside the time_window!
     product_product_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'product_id', 'review_time', 'timestamp', args.time_window)
 
     print('*'*50)
     print(f'\n PRODUCT_PRODUCT_ID -> \n {product_product_id.collect()}')
-    save_data_csv(product_product_id, 'product_id', args.output_path)
+    save_data_parquet(product_product_id, 'product_id', args.output_path)
 
     data_columns = ['title', 'brand', 'description', 'price', 'category']
     expanded_train_foreign_keys = product_product_id
@@ -114,12 +113,10 @@ def main(args):
     review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
     print('*'*50)
     print(f'\n review_review_id -> \n {review_review_id.collect()}')
-    save_data_csv(review_review_id, 'review_id', args.output_path)
+    save_data_parquet(review_review_id, 'review_id', args.output_path)
 
-    if args.kaggle:
-        data_columns = ['review_text', 'summary', 'rating', 'verified']
-    else:
-        data_columns = ['summary', 'rating', 'verified']
+    #data_columns = ['review_text', 'summary', 'rating', 'verified']
+    data_columns = ['summary', 'rating', 'verified']
         
     expanded_train_foreign_keys = review_review_id
     foreign_key = 'review_id'
@@ -136,7 +133,6 @@ if __name__ == '__main__':
     parser.add_argument('output_path', type=str, help="Directory for output data")
     parser.add_argument('time_window', type=str, help="Time window for the processed data")    
     parser.add_argument('--base_data_path', type=str, default=r'data\1_raw', help="Directory base for /rel-amazon/")
-    parser.add_argument('--kaggle', action='store_true', help="Flag to indicate whether the script will run on kaggle or not")
     parser.add_argument('--generate_train_section', action='store_true', help="Flag to indicate whether to generate new section of the training data")
     parser.add_argument('--train_section_path', type=str, default = ' ', help="Path for reading section of the training data. Must be .parquet file")
     parser.add_argument('--sample_size', type=int, default=5000, help="Number of samples to process from the train set")
