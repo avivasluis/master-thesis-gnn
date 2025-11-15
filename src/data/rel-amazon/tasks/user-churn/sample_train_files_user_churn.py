@@ -1,6 +1,7 @@
 import argparse
 import sys
 from typing import Dict, Any, List
+from pathlib import Path
 import polars as pl
 
 ## 1. Helper Functions
@@ -206,11 +207,15 @@ def main(args):
     # --- 6. Saving Results ---
     print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
     
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Saving files to: {output_dir.resolve()}")
+    
     saved_count = 0
     for year in args.years_to_save:
         if year in sampled_train_yearly_dfs:
             df_to_save = sampled_train_yearly_dfs[year]
-            output_path = f"{args.output_prefix}_{year}.parquet"
+            output_path = output_dir / f"{args.output_prefix}_{year}.parquet"
             try:
                 df_to_save.write_parquet(output_path)
                 print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
@@ -264,6 +269,12 @@ def setup_argparser():
     )
     
     # --- Output Parameters ---
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=".",
+        help="Directory to save the output parquet files. (Default: current directory)"
+    )
     parser.add_argument(
         "--years_to_save",
         type=int,
