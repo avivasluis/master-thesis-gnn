@@ -133,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('output_path', type=str, help="Directory for output data")
     parser.add_argument('time_window', type=str, help="Time window for the processed data")    
     parser.add_argument('--base_data_path', type=str, default=r'data\1_raw', help="Directory base for /rel-amazon/")
-    parser.add_argument('--training_base_data_path', type=str, default=r' ', help="Directory base for training files")
+    parser.add_argument('--training_data_path', type=str, default=r' ', help="Directory base for training files")
     parser.add_argument('--generate_train_section', action='store_true', help="Flag to indicate whether to generate new section of the training data")
     parser.add_argument('--train_section_path', type=str, default = ' ', help="Path for reading section of the training data. Must be .parquet file")
     parser.add_argument('--sample_size', type=int, default=5000, help="Number of samples to process from the train set")
@@ -142,11 +142,10 @@ if __name__ == '__main__':
     review_file = os.path.join(args.base_data_path, 'rel-amazon', 'db', 'review.parquet')
     product_file = os.path.join(args.base_data_path, 'rel-amazon', 'db', 'product.parquet')
     customer_file = os.path.join(args.base_data_path, 'rel-amazon', 'db', 'customer.parquet')
-    train_file = os.path.join(args.base_data_path, 'rel-amazon', 'tasks', 'user-churn', 'train.parquet')
 
     args.review_lazy = pl.scan_parquet(review_file).with_row_index('review_id')
     args.product_lazy = pl.scan_parquet(product_file)
     args.customer_lazy = pl.scan_parquet(customer_file)
-    args.train_lazy = pl.scan_parquet(train_file)
+    args.train_lazy = pl.scan_parquet(args.training_data_path)
 
     main(args)
