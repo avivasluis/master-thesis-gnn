@@ -210,7 +210,7 @@ def main(args):
     for year in args.years_to_save:
         if year in sampled_train_yearly_dfs:
             df_to_save = sampled_train_yearly_dfs[year]
-            output_path = f"{args.output_prefix}{year}.parquet"
+            output_path = f"{args.output_prefix}_{year}.parquet"
             try:
                 df_to_save.write_parquet(output_path)
                 print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
