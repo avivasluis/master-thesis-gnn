@@ -40,7 +40,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--type", choices=PIPELINES.keys(), required=True, help="Pipeline type")
     p.add_argument("--label-column", default="churn", help="Target/label column name (optional)")
     p.add_argument("--out", default="./graphs", help="Output directory for .pt files")
-    p.add_argument("--densities", default="15,10,7,4", help="Comma-separated densities")
+    p.add_argument("--densities", default="15,10,7,4", help="Comma-separated list of target densities (%)")
+    # Categorical-specific hyper-parameters
+    p.add_argument("--min_support", type=float, default=0.03, help="min_support for association rules")
+    p.add_argument("--min_lift", type=float, default=1.2, help="min_lift for association rules")
     return p.parse_args()
 
 def main() -> None:
@@ -57,12 +60,17 @@ def main() -> None:
         df = pd.read_csv(path)
     special_print(df.head(), "Loaded DF")
 
-    datas = build_graph(
-        df,
+    build_kwargs = dict(
+        df=df,
         label_column=args.label_column,
         item_list_column=args.column,
         target_densities=target_densities,
     )
+
+    if args.type == "categorical":
+        build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
+
+    datas = build_graph(**build_kwargs)
 
     for data in datas:
         save_data_object(
