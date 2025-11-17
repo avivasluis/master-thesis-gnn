@@ -15,10 +15,18 @@ import argparse
 import importlib
 import os
 from pathlib import Path
+import sys
 
 import pandas as pd
 
-from .common import save_data_object, special_print
+# Ensure package root is on sys.path when running the file directly
+PACKAGE_NAME = "graph_construction"
+this_file = Path(__file__).resolve()
+package_root = this_file.parent.parent  # .../src
+if package_root.as_posix() not in sys.path:
+    sys.path.insert(0, package_root.as_posix())
+
+from graph_construction.common import save_data_object, special_print
 
 PIPELINES = {
     "categorical": "graph_construction.categorical",
