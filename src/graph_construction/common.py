@@ -1,0 +1,206 @@
+from __future__ import annotations
+
+"""Common helper utilities shared by graph-construction pipelines.
+
+The functions here are intentionally dataset-agnostic.  They operate on generic
+`pd.DataFrame` inputs and simple Python / NumPy / torch objects so that any
+notebook-style experiment can import them without modification.
+"""
+
+import os
+import shlex
+from collections import defaultdict
+from html import unescape
+from pprint import pprint
+from typing import Iterable, Mapping
+
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn.functional as F
+from torch_geometric.data import Data
+from torch_geometric.utils import degree, to_undirected
+
+__all__ = [
+    "special_print",
+    "parse_string_list",
+    "return_density",
+    "build_edge_index",
+    "return_data_partition_masks",
+    "find_threshold_for_target_density",
+    "create_node_feature_table",
+    "save_data_object",
+]
+
+
+# ---------------------------------------------------------------------------
+# misc helpers
+# ---------------------------------------------------------------------------
+
+def special_print(var, name: str | None = None, *, use_pprint: bool = False) -> None:
+    """Pretty print a variable with clear separators – convenient for notebooks.
+
+    Parameters
+    ----------
+    var
+        The object to show.
+    name
+        Optional label printed before the value.
+    use_pprint
+        If ``True`` use :pyfunc:`pprint.pprint`; otherwise use ``print``.
+    """
+    print()  # blank line
+    print("_" * 150)
+    if name is not None:
+        header = f"\n {name} -> \n"
+        print(header)
+    if use_pprint:
+        pprint(var)
+    else:
+        print(var)
+    print("-" * 150)
+    print()
+
+
+# ---------------------------------------------------------------------------
+# string ⇄ list conversion – required when CSV is stored with list-like strings
+# ---------------------------------------------------------------------------
+
+def parse_string_list(s: str | list[str] | np.ndarray | None) -> list[str]:
+    """Parse a string that represents a list of substrings.
+
+    Accepts the typical output of ``DataFrame.to_csv`` where Python lists end up
+    as strings such as ``"['foo' 'bar']"``.
+    """
+    if not isinstance(s, str):
+        return [] if s is None else list(s)
+
+    s = unescape(s).strip()
+    if s.startswith("[") and s.endswith("]"):
+        s = s[1:-1]
+
+    try:
+        return shlex.split(s)
+    except ValueError:
+        # Malformed quotes, just fall back to whitespace split.
+        return s.split()
+
+
+# ---------------------------------------------------------------------------
+# density / edge helpers
+# ---------------------------------------------------------------------------
+
+def return_density(n_nodes: int, n_edges: int | float) -> float:
+    """Return (undirected) graph density in percent (0-100)."""
+    n_max_edges = (n_nodes * (n_nodes - 1)) / 2
+    return (n_edges / n_max_edges) * 100
+
+
+def build_edge_index(similarity_matrix: np.ndarray, threshold: float) -> torch.Tensor:
+    """Return a *coalesced*, undirected ``edge_index`` tensor from the matrix."""
+    # only upper-triangular comparison, k=1 excludes self-loops
+    edges = np.nonzero(np.triu(similarity_matrix > threshold, k=1))
+    edge_index = np.stack(edges, axis=0)
+    edge_index = torch.as_tensor(edge_index, dtype=torch.long)
+    return to_undirected(edge_index)
+
+
+# ---------------------------------------------------------------------------
+# train/val/test mask split (simple 80/10/10)
+# ---------------------------------------------------------------------------
+
+def return_data_partition_masks(nodes_id: np.ndarray | torch.Tensor) -> Mapping[str, torch.Tensor]:
+    """Return boolean masks for *row-wise* splits 80/10/10.
+
+    ``nodes_id`` is assumed to be monotonic increasing 0..N-1.
+    """
+    n = len(nodes_id)
+    train_len = int(n * 0.8)
+    val_len = int(n * 0.1)
+
+    train_mask = nodes_id < train_len
+    val_mask = (nodes_id >= train_len) & (nodes_id < train_len + val_len)
+    test_mask = nodes_id >= train_len + val_len
+
+    # convert to torch.BoolTensor so downstream code can use them directly
+    to_tensor = lambda x: torch.as_tensor(x, dtype=torch.bool)
+    return {
+        "train_mask": to_tensor(train_mask),
+        "val_mask": to_tensor(val_mask),
+        "test_mask": to_tensor(test_mask),
+    }
+
+
+# ---------------------------------------------------------------------------
+# node features (one-hot degree)
+# ---------------------------------------------------------------------------
+
+def create_node_feature_table(edge_index: torch.Tensor, n_nodes: int) -> torch.Tensor:
+    """Return one-hot degree feature matrix (shape [N, max_deg+1])."""
+    deg = degree(edge_index[0], num_nodes=n_nodes, dtype=torch.long)
+    x = F.one_hot(deg).to(torch.float32)
+    return x
+
+
+# ---------------------------------------------------------------------------
+# threshold search – reused by every pipeline
+# ---------------------------------------------------------------------------
+
+def find_threshold_for_target_density(
+    similarity_matrix: np.ndarray,
+    n_nodes: int,
+    target_density: float,
+    *,
+    tolerance: float = 1.0,
+    max_iter: int = 100,
+) -> float:
+    """Binary-search a similarity threshold so that the resulting graph density
+    is **as close as possible** to `target_density` (percentage).
+    """
+    low, high = 0.0, 1.0
+    best_threshold = 0.0
+    min_diff = float("inf")
+
+    for _ in range(max_iter):
+        mid = (low + high) / 2
+        if high - low < 1e-6:
+            break  # search space exhausted
+
+        edge_index = build_edge_index(similarity_matrix, mid)
+        n_edges = edge_index.size(1) / 2  # undirected – each edge counted twice
+        density = return_density(n_nodes, n_edges)
+        diff = abs(density - target_density)
+
+        if diff < min_diff:
+            min_diff = diff
+            best_threshold = mid
+        if diff <= tolerance:
+            break
+
+        if density > target_density:
+            low = mid  # need fewer edges → higher threshold
+        else:
+            high = mid
+
+    return best_threshold
+
+
+# ---------------------------------------------------------------------------
+# persist helper
+# ---------------------------------------------------------------------------
+
+def save_data_object(
+    data: Data,
+    directory_name: str,
+    threshold: float,
+    density: float,
+    output_base_path: str | os.PathLike = "./graphs",
+) -> str:
+    """Save a :class:`torch_geometric.data.Data` and return the filepath."""
+    output_dir = os.path.join(output_base_path, directory_name)
+    os.makedirs(output_dir, exist_ok=True)
+    file_name = f"thr_{threshold:.2f}__{density:.2f}%.pt"
+    filepath = os.path.join(output_dir, file_name)
+    torch.save(data, filepath)
+    print(f"Saved: {os.path.relpath(filepath, output_base_path)}")
+    return filepath
