@@ -149,7 +149,7 @@ def build_graph(
 
     similarity_map = _build_similarity_map(transactions, min_support=min_support, min_lift=min_lift)
     if verbose:
-        special_print(similarity_map.head(), "similarity_map.head()", use_pprint=True)
+        special_print(similarity_map, "similarity_map", use_pprint=True)
 
     similarity_matrix = _create_similarity_matrix(transactions, similarity_map)
     if verbose:
