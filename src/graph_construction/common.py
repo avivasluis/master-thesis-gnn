@@ -272,7 +272,7 @@ def make_stratified_masks(
     )
 
     relative_val = val_ratio / (1 - train_ratio)  # val share within tmp
-    idx_val, idx_test = train_test_split(
+    idx_val, idx_test, _, _ = train_test_split(
         idx_tmp, y_tmp, stratify=y_tmp, test_size=1 - relative_val, random_state=seed
     )
 
