@@ -18,6 +18,9 @@ from pathlib import Path
 import sys
 
 import pandas as pd
+import re
+from html import unescape
+import numpy as np
 
 # Ensure package root is on sys.path when running the file directly
 PACKAGE_NAME = "graph_construction"
@@ -33,6 +36,38 @@ PIPELINES = {
     "numeric": "graph_construction.numeric",
 }
 
+PREPROCESSORS = {
+    "product_brand": lambda lst: [clean_author(s) for s in lst if s],
+    "product_category": lambda arr: flatten_and_filter(arr).tolist(),
+}
+
+def clean_author(raw: str) -> str:
+    """Simplified author cleaner – strips the common "Visit Amazon's <Name> Page" suffix and
+    trims whitespace."""
+    if not isinstance(raw, str):
+        return raw
+    raw = raw.strip()
+    m = re.match(r"Visit Amazon's\s+(.+?)\s+Page$", raw, flags=re.I)
+    return m.group(1).strip() if m else raw
+
+def flatten_and_filter(x) -> np.ndarray:
+    """Light-weight version of the helper shown in the notebook.
+    1. Flattens nested lists/arrays
+    2. Drops empty strings and the standalone word 'Books'
+    3. HTML-unescapes strings
+    Returns a numpy array of strings."""
+    # ---- flatten
+    if isinstance(x, np.ndarray) and x.dtype.kind != "O":
+        flat = x.ravel()
+    else:
+        try:
+            flat = np.hstack(x).ravel()
+        except Exception:
+            flat = np.atleast_1d(x).ravel()
+    # ---- filter
+    clean = [unescape(s) for s in flat if isinstance(s, str) and s.strip() and s.strip().lower() != "books"]
+    return np.array(clean, dtype=object)
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Graph constructor")
     p.add_argument("--csv", required=True, help="Path to expanded training CSV")
@@ -44,6 +79,7 @@ def _parse_args() -> argparse.Namespace:
     # Categorical-specific hyper-parameters
     p.add_argument("--min_support", type=float, default=0.03, help="min_support for association rules")
     p.add_argument("--min_lift", type=float, default=1.2, help="min_lift for association rules")
+    p.add_argument("--no-preprocess", action="store_true", help="Disable automatic preprocessing of the list column before graph construction")
     return p.parse_args()
 
 def main() -> None:
@@ -54,11 +90,15 @@ def main() -> None:
     build_graph = getattr(module, "build_graph")
 
     path = Path(args.csv)
-    if path.suffix.lower() in {".parquet", ".pq"}:
-        df = pd.read_parquet(path)
-    else:
-        df = pd.read_csv(path)
+    df = pd.read_parquet(path) if path.suffix.lower() in {".parquet", ".pq"} else pd.read_csv(path)
     special_print(df.head(), "Loaded DF")
+
+    # --------------------------------------------------
+    # Optional preprocessing of the list column
+    # --------------------------------------------------
+    if not args.no_preprocess and args.column in PREPROCESSORS:
+        special_print(f"Applying preprocessing for column '{args.column}'", "Info")
+        df[args.column] = df[args.column].apply(PREPROCESSORS[args.column])
 
     build_kwargs = dict(
         df=df,
