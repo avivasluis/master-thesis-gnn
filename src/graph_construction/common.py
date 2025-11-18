@@ -95,6 +95,7 @@ def return_density(n_nodes: int, n_edges: int | float) -> float:
     n_max_edges = (n_nodes * (n_nodes - 1)) / 2
     return (n_edges / n_max_edges) * 100
 
+
 def compute_assortativity_categorical(edge_index: torch.Tensor, y: torch.Tensor, num_classes: int = None):
     # Treat as undirected by counting both directions, per Newman (2003)
     if num_classes is None:
@@ -120,6 +121,7 @@ def compute_assortativity_categorical(edge_index: torch.Tensor, y: torch.Tensor,
     expected = (a * b).sum()
     r = (e.diag().sum() - expected) / (1 - expected + 1e-12)
     return r.item()
+
 
 def build_edge_index(similarity_matrix: np.ndarray, threshold: float) -> torch.Tensor:
     """Return a *coalesced*, undirected ``edge_index`` tensor from the matrix."""
