@@ -110,7 +110,16 @@ def main() -> None:
     if args.type == "categorical":
         build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
 
-    datas = build_graph(**build_kwargs)
+    datas, similarity_matrix = build_graph(**build_kwargs)
+
+    save_data_object(
+        similarity_matrix,
+        directory_name=args.column,
+        threshold=0.0,
+        density=0.0,
+        output_base_path=args.out,
+        similarity_matrix_flag = True
+    )
 
     for data in datas:
         save_data_object(

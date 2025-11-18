@@ -195,11 +195,15 @@ def save_data_object(
     threshold: float,
     density: float,
     output_base_path: str | os.PathLike = "./graphs",
+    similarity_matrix_flag = False
 ) -> str:
     """Save a :class:`torch_geometric.data.Data` and return the filepath."""
     output_dir = os.path.join(output_base_path, directory_name)
     os.makedirs(output_dir, exist_ok=True)
-    file_name = f"thr_{threshold:.2f}__{density:.2f}%.pt"
+    if similarity_matrix_flag:
+        file_name = f"similarity_matrix.pt"
+    else:
+        file_name = f"thr_{threshold:.2f}__{density:.2f}%.pt"
     filepath = os.path.join(output_dir, file_name)
     torch.save(data, filepath)
     print(f"Saved: {os.path.relpath(filepath, output_base_path)}")
