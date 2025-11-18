@@ -25,6 +25,7 @@ __all__ = [
     "special_print",
     "parse_string_list",
     "return_density",
+    'compute_assortativity_categorical',
     "build_edge_index",
     "return_data_partition_masks",
     "find_threshold_for_target_density",

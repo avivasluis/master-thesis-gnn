@@ -73,13 +73,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--csv", required=True, help="Path to expanded training CSV")
     p.add_argument("--column", required=True, help="Name of the list column to use")
     p.add_argument("--type", choices=PIPELINES.keys(), required=True, help="Pipeline type")
-    p.add_argument("--label-column", default="churn", help="Target/label column name (optional)")
+    p.add_argument("--label_column", default="churn", help="Target/label column name (optional)")
     p.add_argument("--out", default="./graphs", help="Output directory for .pt files")
     p.add_argument("--densities", default="15,10,7,4", help="Comma-separated list of target densities (%)")
     # Categorical-specific hyper-parameters
     p.add_argument("--min_support", type=float, default=0.03, help="min_support for association rules")
     p.add_argument("--min_lift", type=float, default=1.2, help="min_lift for association rules")
     p.add_argument("--no-preprocess", action="store_true", help="Disable automatic preprocessing of the list column before graph construction")
+    # Experiment logging parameters
+    p.add_argument("--dataset", type=str, default='rel-amazon', help="Origin dataset of the graph")
+    p.add_argument("--task", type=str, default='user-churn', help="Task of the dataset the graph is modeling")
+    p.add_argument("--time_window", type=str, required=True, help="Time window from which the graph is being modeled")
     return p.parse_args()
 
 def main() -> None:
@@ -105,6 +109,9 @@ def main() -> None:
         label_column=args.label_column,
         item_list_column=args.column,
         target_densities=target_densities,
+        dataset = args.dataset,
+        task = args.task,
+        time_window = args.time_window,
     )
 
     if args.type == "categorical":

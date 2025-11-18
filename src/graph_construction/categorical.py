@@ -24,6 +24,7 @@ from .common import (
     parse_string_list,
     return_data_partition_masks,
     return_density,
+    compute_assortativity_categorical,
     special_print,
 )
 
@@ -113,6 +114,9 @@ def build_graph(
     density_tol: float = 1.0,
     max_iter: int = 100,
     verbose: bool = True,
+    dataset: str = 'rel-amazon',
+    task: str = 'user-churn',
+    time_window: str = '-6mo'
 ) -> list[Data]:
     """Construct one :class:`torch_geometric.data.Data` object **per** target density.
 
@@ -171,10 +175,22 @@ def build_graph(
         edge_index = build_edge_index(similarity_matrix, thr)
         n_edges = edge_index.size(1) / 2
         density = return_density(n_nodes, n_edges)
+        assortativity = compute_assortativity_categorical(edge_index, y) if y is not None else None
 
         x = create_node_feature_table(edge_index, n_nodes)
-        data = Data(x=x, edge_index=edge_index, y=y, masks=masks, density=round(density, 2))
-        data.threshold = thr  # attach extra attributes for convenience
+        data = Data(
+            x=x, 
+            edge_index=edge_index, 
+            y=y, 
+            masks=masks, 
+            density=round(density, 2),
+            assortativity=assortativity,
+            threshold = round(thr, 5),
+            dataset = dataset,
+            task = task,
+            time_window = time_window
+            )
+        
         data_objects.append(data)
         if verbose:
             special_print(
