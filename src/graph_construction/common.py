@@ -248,7 +248,7 @@ def make_stratified_masks(
     *,
     train_ratio: float = 0.8,
     val_ratio: float = 0.1,
-    seed: int = 42,
+    seed: int = 123,
 ) -> Mapping[str, torch.Tensor]:
     """Return boolean masks with stratified 80/10/10 splits.
 
