@@ -186,4 +186,4 @@ def build_graph(
                 name=f"density {target}% summary",
             )
 
-    return data_objects
+    return data_objects, similarity_matrix
