@@ -190,21 +190,24 @@ def find_threshold_for_target_density(
 # ---------------------------------------------------------------------------
 
 def save_data_object(
-    data: Data,
+    data: Data | np.ndarray,
     directory_name: str,
     threshold: float,
     density: float,
     output_base_path: str | os.PathLike = "./graphs",
-    similarity_matrix_flag = False
+    similarity_matrix_flag: bool = False,
 ) -> str:
     """Save a :class:`torch_geometric.data.Data` and return the filepath."""
     output_dir = os.path.join(output_base_path, directory_name)
     os.makedirs(output_dir, exist_ok=True)
     if similarity_matrix_flag:
-        file_name = f"similarity_matrix.pt"
+        file_name = "similarity_matrix.npy"
+        filepath = os.path.join(output_dir, file_name)
+        # save as compressed numpy binary for easy reload
+        np.save(filepath, data)
     else:
         file_name = f"thr_{threshold:.2f}__{density:.2f}%.pt"
-    filepath = os.path.join(output_dir, file_name)
-    torch.save(data, filepath)
+        filepath = os.path.join(output_dir, file_name)
+        torch.save(data, filepath)
     print(f"Saved: {os.path.relpath(filepath, output_base_path)}")
     return filepath
