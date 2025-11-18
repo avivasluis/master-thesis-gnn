@@ -22,6 +22,7 @@ from .common import (
     return_density,
     compute_assortativity_categorical,
     special_print,
+    make_stratified_masks,
 )
 
 __all__ = ["build_graph"]
@@ -108,7 +109,7 @@ def build_graph(
 
     n_nodes = len(df)
     y = torch.as_tensor(df[label_column].values, dtype=torch.long) if label_column in df else None
-    masks = return_data_partition_masks(np.arange(n_nodes))
+    masks = make_stratified_masks(y) if y is not None else return_data_partition_masks(np.arange(n_nodes))
 
     # continuous node feature matrix (9-dim)
     #x_mlp = _create_mlp_features(df, item_list_column)

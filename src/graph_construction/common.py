@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.utils import degree, to_undirected
+from sklearn.model_selection import train_test_split
 
 __all__ = [
     "special_print",
@@ -31,6 +32,7 @@ __all__ = [
     "find_threshold_for_target_density",
     "create_node_feature_table",
     "save_data_object",
+    "make_stratified_masks",
 ]
 
 
@@ -239,3 +241,45 @@ def save_data_object(
         torch.save(data, filepath)
     print(f"Saved: {os.path.relpath(filepath, output_base_path)}")
     return filepath
+
+
+def make_stratified_masks(
+    y: np.ndarray | torch.Tensor,
+    *,
+    train_ratio: float = 0.8,
+    val_ratio: float = 0.1,
+    seed: int = 42,
+) -> Mapping[str, torch.Tensor]:
+    """Return boolean masks with stratified 80/10/10 splits.
+
+    Parameters
+    ----------
+    y
+        1-D label tensor/array.  Must be the **same order** as rows/nodes.
+    train_ratio, val_ratio
+        Fractions that sum to ≤1.  Test ratio is inferred.
+    seed
+        Random seed to make the split reproducible across different runs and
+        across different graph constructions (so long as the node order stays
+        identical).
+    """
+    y_np = y.detach().cpu().numpy() if isinstance(y, torch.Tensor) else np.asarray(y)
+
+    idx = np.arange(len(y_np))
+
+    idx_train, idx_tmp, y_train, y_tmp = train_test_split(
+        idx, y_np, stratify=y_np, test_size=1 - train_ratio, random_state=seed
+    )
+
+    relative_val = val_ratio / (1 - train_ratio)  # val share within tmp
+    idx_val, idx_test = train_test_split(
+        idx_tmp, y_tmp, stratify=y_tmp, test_size=1 - relative_val, random_state=seed
+    )
+
+    mask = lambda ids: torch.as_tensor(np.isin(idx, ids), dtype=torch.bool)
+
+    return {
+        "train_mask": mask(idx_train),
+        "val_mask": mask(idx_val),
+        "test_mask": mask(idx_test),
+    }
