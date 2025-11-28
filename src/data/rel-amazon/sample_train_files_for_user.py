@@ -158,52 +158,52 @@ def main(args):
                 ).drop("review_time")
             
             lfs_to_sample_from[year] = filtered_lf
-
+    else:
+        print("--- Skipping Top K Product Filter ---")
+        print("Preparing to sample directly from train data...")
+        
+        for year in train_years:
+            print(f"\nProcessing Year {year} (No Filter Path):")
+            
+            train_this_year_lf = train_lazy.filter(
+                pl.col("timestamp").dt.year() == year
+            )
+            
+            lfs_to_sample_from[year] = train_this_year_lf
+    
     print(lfs_to_sample_from[2013].head(15).collect())
     print("Number of rows in lfs_to_sample_from[2013]:", lfs_to_sample_from[2013].collect().height)
-    #else:
-    #    print("--- Skipping Top K Product Filter ---")
-    #    print("Preparing to sample directly from train data...")
-    #    
-    #    for year in train_years:
-    #        print(f"\nProcessing Year {year} (No Filter Path):")
-    #        
-    #        train_this_year_lf = train_lazy.filter(
-    #            pl.col("timestamp").dt.year() == year
-    #        )
-    #        
-    #        lfs_to_sample_from[year] = train_this_year_lf
 
-    ## --- 4. Sampling ---
-    #sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
-    #print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
+    # --- 4. Sampling ---
+    sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
+    print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
 
-    #for year, yearly_lf in lfs_to_sample_from.items():
-    #    print(f"Year {year}: Collecting filtered data...")
-    #    
-    #    # We must collect before we can get an accurate length or sample
-    #    try:
-    #        yearly_df = yearly_lf.collect()
-    #    except Exception as e:
-    #        print(f"  Error collecting data for {year}: {e}", file=sys.stderr)
-    #        continue
-    #        
-    #    available_rows = len(yearly_df)
+    for year, yearly_lf in lfs_to_sample_from.items():
+        print(f"Year {year}: Collecting filtered data...")
+        
+        # We must collect before we can get an accurate length or sample
+        try:
+            yearly_df = yearly_lf.collect()
+        except Exception as e:
+            print(f"  Error collecting data for {year}: {e}", file=sys.stderr)
+            continue
+            
+        available_rows = len(yearly_df)
 
-    #    if available_rows == 0:
-    #        print(f"Year {year}: No data available, skipping.")
-    #        continue
+        if available_rows == 0:
+            print(f"Year {year}: No data available, skipping.")
+            continue
 
-    #    actual_sample_size = min(args.sample_size, available_rows)
+        actual_sample_size = min(args.sample_size, available_rows)
 
-    #    sampled_df = yearly_df.sample(
-    #        n=actual_sample_size, 
-    #        shuffle=True, 
-    #        seed=args.seed
-    #    )
+        sampled_df = yearly_df.sample(
+            n=actual_sample_size, 
+            shuffle=True, 
+            seed=args.seed
+        )
 
-    #    sampled_train_yearly_dfs[year] = sampled_df
-    #    print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
+        sampled_train_yearly_dfs[year] = sampled_df
+        print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
 
     ## --- 5. Saving Results ---
     #print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
