@@ -81,114 +81,116 @@ def main(args):
 
     # --- 3. Conditional Filtering Logic ---
     # This dictionary will hold the LazyFrames to be sampled from
-   #lfs_to_sample_from: Dict[int, pl.LazyFrame] = {}
+    lfs_to_sample_from: Dict[int, pl.LazyFrame] = {}
 
-   #if args.filter_by_top_k_products:
-   #    print(f"--- Filtering Yearly Train LFs based on Top {args.top_k} Products ---")
-   #    
-   #    # This step is expensive, only run if filtering
-   #    yearly_top_products = get_yearly_top_k_products(review_lazy, args.top_k)
+    if args.filter_by_top_k_products:
+        print(f"--- Filtering Yearly Train LFs based on Top {args.top_k} Products ---")
+        
+        # This step is expensive, only run if filtering
+        yearly_top_products = get_yearly_top_k_products(review_lazy, args.top_k)
 
-   #    for year in train_years:
-   #        print(f"\nProcessing Year {year} (Filter Path):")
-   #        
-   #        top_products_df = yearly_top_products.get(year)
-   #        if top_products_df is None or top_products_df.is_empty():
-   #            print(f"  Warning: No 'yearly_top_products' data found for {year}. Skipping year.")
-   #            continue
-   #            
-   #        top_product_ids = top_products_df.get_column("product_id")
+        print(yearly_top_products.collect())
 
-   #        # Filter reviews to only top K products for this year
-   #        top_k_reviews_lf = review_lazy.filter(
-   #            pl.col("product_id").is_in(top_product_ids)
-   #        ).select("customer_id", "review_time").sort("review_time")
+    #    for year in train_years:
+    #        print(f"\nProcessing Year {year} (Filter Path):")
+    #        
+    #        top_products_df = yearly_top_products.get(year)
+    #        if top_products_df is None or top_products_df.is_empty():
+    #            print(f"  Warning: No 'yearly_top_products' data found for {year}. Skipping year.")
+    #            continue
+    #            
+    #        top_product_ids = top_products_df.get_column("product_id")
 
-   #        # Get train data for this year
-   #        train_this_year_lf = train_lazy.filter(
-   #            pl.col("timestamp").dt.year() == year
-   #        ).sort("timestamp")
+    #        # Filter reviews to only top K products for this year
+    #        top_k_reviews_lf = review_lazy.filter(
+    #            pl.col("product_id").is_in(top_product_ids)
+    #        ).select("customer_id", "review_time").sort("review_time")
 
-   #        # Join to find if customer has ANY top K review at or before their timestamp
-   #        filtered_lf = train_this_year_lf.join_asof(
-   #            top_k_reviews_lf,
-   #            left_on="timestamp",
-   #            right_on="review_time",
-   #            by="customer_id",
-   #            strategy="backward"
-   #        ).filter(
-   #            pl.col("review_time").is_not_null()  # Keep rows where a top K review exists
-   #        ).drop("review_time")  # Clean up the joined column
-   #        
-   #        lfs_to_sample_from[year] = filtered_lf
+    #        # Get train data for this year
+    #        train_this_year_lf = train_lazy.filter(
+    #            pl.col("timestamp").dt.year() == year
+    #        ).sort("timestamp")
 
-   #else:
-   #    print("--- Skipping Top K Product Filter ---")
-   #    print("Preparing to sample directly from train data...")
-   #    
-   #    for year in train_years:
-   #        print(f"\nProcessing Year {year} (No Filter Path):")
-   #        
-   #        train_this_year_lf = train_lazy.filter(
-   #            pl.col("timestamp").dt.year() == year
-   #        )
-   #        
-   #        lfs_to_sample_from[year] = train_this_year_lf
+    #        # Join to find if customer has ANY top K review at or before their timestamp
+    #        filtered_lf = train_this_year_lf.join_asof(
+    #            top_k_reviews_lf,
+    #            left_on="timestamp",
+    #            right_on="review_time",
+    #            by="customer_id",
+    #            strategy="backward"
+    #        ).filter(
+    #            pl.col("review_time").is_not_null()  # Keep rows where a top K review exists
+    #        ).drop("review_time")  # Clean up the joined column
+    #        
+    #        lfs_to_sample_from[year] = filtered_lf
 
-   ## --- 4. Sampling ---
-   #sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
-   #print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
+    #else:
+    #    print("--- Skipping Top K Product Filter ---")
+    #    print("Preparing to sample directly from train data...")
+    #    
+    #    for year in train_years:
+    #        print(f"\nProcessing Year {year} (No Filter Path):")
+    #        
+    #        train_this_year_lf = train_lazy.filter(
+    #            pl.col("timestamp").dt.year() == year
+    #        )
+    #        
+    #        lfs_to_sample_from[year] = train_this_year_lf
 
-   #for year, yearly_lf in lfs_to_sample_from.items():
-   #    print(f"Year {year}: Collecting filtered data...")
-   #    
-   #    # We must collect before we can get an accurate length or sample
-   #    try:
-   #        yearly_df = yearly_lf.collect()
-   #    except Exception as e:
-   #        print(f"  Error collecting data for {year}: {e}", file=sys.stderr)
-   #        continue
-   #        
-   #    available_rows = len(yearly_df)
+    ## --- 4. Sampling ---
+    #sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
+    #print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
 
-   #    if available_rows == 0:
-   #        print(f"Year {year}: No data available, skipping.")
-   #        continue
+    #for year, yearly_lf in lfs_to_sample_from.items():
+    #    print(f"Year {year}: Collecting filtered data...")
+    #    
+    #    # We must collect before we can get an accurate length or sample
+    #    try:
+    #        yearly_df = yearly_lf.collect()
+    #    except Exception as e:
+    #        print(f"  Error collecting data for {year}: {e}", file=sys.stderr)
+    #        continue
+    #        
+    #    available_rows = len(yearly_df)
 
-   #    actual_sample_size = min(args.sample_size, available_rows)
+    #    if available_rows == 0:
+    #        print(f"Year {year}: No data available, skipping.")
+    #        continue
 
-   #    sampled_df = yearly_df.sample(
-   #        n=actual_sample_size, 
-   #        shuffle=True, 
-   #        seed=args.seed
-   #    )
+    #    actual_sample_size = min(args.sample_size, available_rows)
 
-   #    sampled_train_yearly_dfs[year] = sampled_df
-   #    print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
+    #    sampled_df = yearly_df.sample(
+    #        n=actual_sample_size, 
+    #        shuffle=True, 
+    #        seed=args.seed
+    #    )
 
-   ## --- 5. Saving Results ---
-   #print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
-   #
-   #output_dir = Path(args.output_dir)
-   #output_dir.mkdir(parents=True, exist_ok=True)
-   #print(f"Saving files to: {output_dir.resolve()}")
-   #
-   #saved_count = 0
-   #for year in args.years_to_save:
-   #    if year in sampled_train_yearly_dfs:
-   #        df_to_save = sampled_train_yearly_dfs[year]
-   #        output_path = output_dir / f"{args.output_prefix}_{year}.parquet"
-   #        try:
-   #            df_to_save.write_parquet(output_path)
-   #            print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
-   #            saved_count += 1
-   #        except Exception as e:
-   #            print(f"  Error saving file {output_path}: {e}", file=sys.stderr)
-   #    else:
-   #        print(f"  Warning: No sampled data found for year {year}. Nothing to save.")
+    #    sampled_train_yearly_dfs[year] = sampled_df
+    #    print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
 
-   #print(f"\nProcessing complete. Saved {saved_count} file(s).")
-   #return 0
+    ## --- 5. Saving Results ---
+    #print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
+    #
+    #output_dir = Path(args.output_dir)
+    #output_dir.mkdir(parents=True, exist_ok=True)
+    #print(f"Saving files to: {output_dir.resolve()}")
+    #
+    #saved_count = 0
+    #for year in args.years_to_save:
+    #    if year in sampled_train_yearly_dfs:
+    #        df_to_save = sampled_train_yearly_dfs[year]
+    #        output_path = output_dir / f"{args.output_prefix}_{year}.parquet"
+    #        try:
+    #            df_to_save.write_parquet(output_path)
+    #            print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
+    #            saved_count += 1
+    #        except Exception as e:
+    #            print(f"  Error saving file {output_path}: {e}", file=sys.stderr)
+    #    else:
+    #        print(f"  Warning: No sampled data found for year {year}. Nothing to save.")
+
+    #print(f"\nProcessing complete. Saved {saved_count} file(s).")
+    #return 0
 
 
 ## 3. Argument Parsing and Script Entrypoint
