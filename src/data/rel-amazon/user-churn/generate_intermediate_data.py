@@ -156,6 +156,6 @@ if __name__ == '__main__':
     args.review_lazy = pl.scan_parquet(review_file).with_row_index('review_id')
     args.product_lazy = pl.scan_parquet(product_file)
     args.customer_lazy = pl.scan_parquet(customer_file)
-    args.train_lazy = pl.scan_parquet(args.training_data_path).drop(['review_time', 'most_recent_product_id']).with_row_index('node_id')
+    args.train_lazy = pl.scan_parquet(args.training_data_path).with_row_index('node_id')
 
     main(args)
