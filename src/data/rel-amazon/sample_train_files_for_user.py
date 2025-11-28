@@ -23,14 +23,11 @@ def get_yearly_top_k_products(
     print(f"Calculating Top {k} products per year from review data...")
     
     # Find the year range in the review data
-    try:
-        range_df = review_lazy.select(
-            pl.col(time_column).min().alias("min_timestamp"),
-            pl.col(time_column).max().alias("max_timestamp"),
-        ).collect()
-    except Exception as e:
-        print(f"Error collecting time range from review data: {e}", file=sys.stderr)
-        return {}
+    range_df = review_lazy.select(
+        pl.col(time_column).min().alias("min_timestamp"),
+        pl.col(time_column).max().alias("max_timestamp"),
+    ).collect()
+
 
     start_year, end_year = range_df['min_timestamp'][0].year, range_df['max_timestamp'][0].year
     
@@ -94,7 +91,7 @@ def main(args):
         # This step is expensive, only run if filtering
         yearly_top_products = get_yearly_top_k_products(review_lazy, args.top_k)
 
-        print(yearly_top_products.get(2013))
+        #print(yearly_top_products.get(2013))
 
         for year in train_years:
             print(f"\nProcessing Year {year} (Filter Path):")
@@ -151,8 +148,8 @@ def main(args):
             
             lfs_to_sample_from[year] = train_this_year_lf
     
-    print(lfs_to_sample_from[2013].head(15).collect())
-    print("Number of rows in lfs_to_sample_from[2013]:", lfs_to_sample_from[2013].collect().height)
+    #print(lfs_to_sample_from[2013].head(15).collect())
+    #print("Number of rows in lfs_to_sample_from[2013]:", lfs_to_sample_from[2013].collect().height)
 
     # --- 4. Sampling ---
     sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
