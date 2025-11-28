@@ -8,26 +8,6 @@ import polars as pl
 ## 1. Helper Functions
 
 def parse_time_window(window_str: str) -> str:
-    """
-    Parses a time window string (e.g., '6mo', '1y', '1y6mo') 
-    and returns a negative offset string for Polars dt.offset_by().
-    
-    Supported formats:
-        - '6mo' -> '-6mo'
-        - '1y' -> '-1y'
-        - '1y6mo' -> '-1y6mo'
-        - '18mo' -> '-18mo'
-    """
-    # Pattern matches: optional years (e.g., '1y'), optional months (e.g., '6mo')
-    pattern = r'^(?:(\d+)y)?(?:(\d+)mo)?$'
-    match = re.match(pattern, window_str)
-    
-    if not match or (match.group(1) is None and match.group(2) is None):
-        raise ValueError(
-            f"Invalid time window format: '{window_str}'. "
-            "Expected formats like '6mo', '1y', '1y6mo', '18mo'."
-        )
-    
     # Return the negated offset string for Polars
     return f"-{window_str}"
 
@@ -205,29 +185,29 @@ def main(args):
         sampled_train_yearly_dfs[year] = sampled_df
         print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
 
-    ## --- 5. Saving Results ---
-    #print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
-    #
-    #output_dir = Path(args.output_dir)
-    #output_dir.mkdir(parents=True, exist_ok=True)
-    #print(f"Saving files to: {output_dir.resolve()}")
-    #
-    #saved_count = 0
-    #for year in args.years_to_save:
-    #    if year in sampled_train_yearly_dfs:
-    #        df_to_save = sampled_train_yearly_dfs[year]
-    #        output_path = output_dir / f"{args.output_prefix}_{year}.parquet"
-    #        try:
-    #            df_to_save.write_parquet(output_path)
-    #            print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
-    #            saved_count += 1
-    #        except Exception as e:
-    #            print(f"  Error saving file {output_path}: {e}", file=sys.stderr)
-    #    else:
-    #        print(f"  Warning: No sampled data found for year {year}. Nothing to save.")
+    # --- 5. Saving Results ---
+    print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
+    
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Saving files to: {output_dir.resolve()}")
+    
+    saved_count = 0
+    for year in args.years_to_save:
+        if year in sampled_train_yearly_dfs:
+            df_to_save = sampled_train_yearly_dfs[year]
+            output_path = output_dir / f"{args.output_prefix}_{year}.parquet"
+            try:
+                df_to_save.write_parquet(output_path)
+                print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
+                saved_count += 1
+            except Exception as e:
+                print(f"  Error saving file {output_path}: {e}", file=sys.stderr)
+        else:
+            print(f"  Warning: No sampled data found for year {year}. Nothing to save.")
 
-    #print(f"\nProcessing complete. Saved {saved_count} file(s).")
-    #return 0
+    print(f"\nProcessing complete. Saved {saved_count} file(s).")
+    return 0
 
 
 ## 3. Argument Parsing and Script Entrypoint
