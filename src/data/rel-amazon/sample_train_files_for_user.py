@@ -91,39 +91,37 @@ def main(args):
 
         print(yearly_top_products.get(2013))
 
-    #    for year in train_years:
-    #        print(f"\nProcessing Year {year} (Filter Path):")
-    #        
-    #        top_products_df = yearly_top_products.get(year)
-    #        if top_products_df is None or top_products_df.is_empty():
-    #            print(f"  Warning: No 'yearly_top_products' data found for {year}. Skipping year.")
-    #            continue
-    #            
-    #        top_product_ids = top_products_df.get_column("product_id")
+        for year in train_years:
+            print(f"\nProcessing Year {year} (Filter Path):")
+            
+            top_products_df = yearly_top_products.get(year)
+                
+            top_product_ids = top_products_df.get_column("product_id")
 
-    #        # Filter reviews to only top K products for this year
-    #        top_k_reviews_lf = review_lazy.filter(
-    #            pl.col("product_id").is_in(top_product_ids)
-    #        ).select("customer_id", "review_time").sort("review_time")
+            # Filter reviews to only top K products for this year
+            top_k_reviews_lf = review_lazy.filter(
+                pl.col("product_id").is_in(top_product_ids)
+            ).select("customer_id", "review_time").sort("review_time")
 
-    #        # Get train data for this year
-    #        train_this_year_lf = train_lazy.filter(
-    #            pl.col("timestamp").dt.year() == year
-    #        ).sort("timestamp")
+            # Get train data for this year
+            train_this_year_lf = train_lazy.filter(
+                pl.col("timestamp").dt.year() == year
+            ).sort("timestamp")
 
-    #        # Join to find if customer has ANY top K review at or before their timestamp
-    #        filtered_lf = train_this_year_lf.join_asof(
-    #            top_k_reviews_lf,
-    #            left_on="timestamp",
-    #            right_on="review_time",
-    #            by="customer_id",
-    #            strategy="backward"
-    #        ).filter(
-    #            pl.col("review_time").is_not_null()  # Keep rows where a top K review exists
-    #        ).drop("review_time")  # Clean up the joined column
-    #        
-    #        lfs_to_sample_from[year] = filtered_lf
+            # Join to find if customer has ANY top K review at or before their timestamp
+            filtered_lf = train_this_year_lf.join_asof(
+                top_k_reviews_lf,
+                left_on="timestamp",
+                right_on="review_time",
+                by="customer_id",
+                strategy="backward"
+            ).filter(
+                pl.col("review_time").is_not_null()  # Keep rows where a top K review exists
+            ).drop("review_time")  # Clean up the joined column
+            
+            lfs_to_sample_from[year] = filtered_lf
 
+    print(lfs_to_sample_from[2013].head(15).collect())
     #else:
     #    print("--- Skipping Top K Product Filter ---")
     #    print("Preparing to sample directly from train data...")
