@@ -122,6 +122,7 @@ def main(args):
             lfs_to_sample_from[year] = filtered_lf
 
     print(lfs_to_sample_from[2013].head(15).collect())
+    print("Number of rows in lfs_to_sample_from[2013]:", lfs_to_sample_from[2013].collect().height)
     #else:
     #    print("--- Skipping Top K Product Filter ---")
     #    print("Preparing to sample directly from train data...")
