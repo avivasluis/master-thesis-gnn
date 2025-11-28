@@ -1,10 +1,35 @@
 import argparse
+import re
 import sys
 from typing import Dict
 from pathlib import Path
 import polars as pl
 
 ## 1. Helper Functions
+
+def parse_time_window(window_str: str) -> str:
+    """
+    Parses a time window string (e.g., '6mo', '1y', '1y6mo') 
+    and returns a negative offset string for Polars dt.offset_by().
+    
+    Supported formats:
+        - '6mo' -> '-6mo'
+        - '1y' -> '-1y'
+        - '1y6mo' -> '-1y6mo'
+        - '18mo' -> '-18mo'
+    """
+    # Pattern matches: optional years (e.g., '1y'), optional months (e.g., '6mo')
+    pattern = r'^(?:(\d+)y)?(?:(\d+)mo)?$'
+    match = re.match(pattern, window_str)
+    
+    if not match or (match.group(1) is None and match.group(2) is None):
+        raise ValueError(
+            f"Invalid time window format: '{window_str}'. "
+            "Expected formats like '6mo', '1y', '1y6mo', '18mo'."
+        )
+    
+    # Return the negated offset string for Polars
+    return f"-{window_str}"
 
 def get_yearly_top_k_products(
     review_lazy: pl.LazyFrame, 
@@ -109,15 +134,28 @@ def main(args):
             ).sort("timestamp")
 
             # Join to find if customer has ANY top K review at or before their timestamp
-            filtered_lf = train_this_year_lf.join_asof(
+            joined_lf = train_this_year_lf.join_asof(
                 top_k_reviews_lf,
                 left_on="timestamp",
                 right_on="review_time",
                 by="customer_id",
                 strategy="backward"
-            ).filter(
-                pl.col("review_time").is_not_null()  # Keep rows where a top K review exists
-            ).drop("review_time")  # Clean up the joined column
+            )
+            
+            # Apply filtering based on whether time_window is specified
+            if args.time_window:
+                window_offset = parse_time_window(args.time_window)
+                print(f"  Applying time window filter: {args.time_window} (offset: {window_offset})")
+                # Keep rows where a top K review exists AND is within the time window
+                filtered_lf = joined_lf.filter(
+                    pl.col("review_time").is_not_null() &
+                    (pl.col("review_time") >= pl.col("timestamp").dt.offset_by(window_offset))
+                ).drop("review_time")
+            else:
+                # Original behavior: any review at or before timestamp
+                filtered_lf = joined_lf.filter(
+                    pl.col("review_time").is_not_null()
+                ).drop("review_time")
             
             lfs_to_sample_from[year] = filtered_lf
 
@@ -215,6 +253,12 @@ def setup_argparser():
         type=int,
         default=1000,
         help="The 'K' value for finding top products. (Default: 1000)"
+    )
+    parser.add_argument(
+        "--time_window",
+        type=str,
+        default=None,
+        help="Time window for filtering (e.g., '6mo', '1y', '1y6mo'). If not set, considers all reviews before timestamp."
     )
     
     # --- Sampling Parameters ---
