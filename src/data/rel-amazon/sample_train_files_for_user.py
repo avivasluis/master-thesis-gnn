@@ -89,7 +89,7 @@ def main(args):
         # This step is expensive, only run if filtering
         yearly_top_products = get_yearly_top_k_products(review_lazy, args.top_k)
 
-        print(yearly_top_products.collect())
+        print(yearly_top_products.get(2013).collect())
 
     #    for year in train_years:
     #        print(f"\nProcessing Year {year} (Filter Path):")
