@@ -1,5 +1,4 @@
 import argparse
-import re
 import sys
 from typing import Dict
 from pathlib import Path
@@ -153,7 +152,11 @@ def main(args):
 
     # --- 4. Sampling ---
     sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
-    print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
+    
+    if args.churn_ratio is not None:
+        print(f"\n--- Stratified Sampling {args.sample_size:,} Rows Per Year (Target: {args.churn_ratio*100:.0f}% churned / {(1-args.churn_ratio)*100:.0f}% not-churned) ---")
+    else:
+        print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
 
     for year, yearly_lf in lfs_to_sample_from.items():
         print(f"Year {year}: Collecting filtered data...")
@@ -171,16 +174,66 @@ def main(args):
             print(f"Year {year}: No data available, skipping.")
             continue
 
-        actual_sample_size = min(args.sample_size, available_rows)
+        if args.churn_ratio is not None:
+            # Stratified sampling to preserve class balance
+            churn_col = args.churn_column
+            
+            # Split by churn label
+            churned_df = yearly_df.filter(pl.col(churn_col) == 1)
+            not_churned_df = yearly_df.filter(pl.col(churn_col) == 0)
+            
+            available_churned = len(churned_df)
+            available_not_churned = len(not_churned_df)
+            
+            # Calculate target samples for each class
+            target_churned = int(args.sample_size * args.churn_ratio)
+            target_not_churned = args.sample_size - target_churned
+            
+            # Adjust if not enough samples in either class
+            actual_churned = min(target_churned, available_churned)
+            actual_not_churned = min(target_not_churned, available_not_churned)
+            
+            # If one class is short, try to compensate with the other (up to available)
+            if actual_churned < target_churned:
+                shortfall = target_churned - actual_churned
+                extra_not_churned = min(shortfall, available_not_churned - actual_not_churned)
+                actual_not_churned += extra_not_churned
+            elif actual_not_churned < target_not_churned:
+                shortfall = target_not_churned - actual_not_churned
+                extra_churned = min(shortfall, available_churned - actual_churned)
+                actual_churned += extra_churned
+            
+            # Sample from each class
+            sampled_churned = churned_df.sample(
+                n=actual_churned, shuffle=True, seed=args.seed
+            ) if actual_churned > 0 else churned_df.head(0)
+            
+            sampled_not_churned = not_churned_df.sample(
+                n=actual_not_churned, shuffle=True, seed=args.seed
+            ) if actual_not_churned > 0 else not_churned_df.head(0)
+            
+            # Combine and shuffle
+            sampled_df = pl.concat([sampled_churned, sampled_not_churned]).sample(
+                fraction=1.0, shuffle=True, seed=args.seed
+            )
+            
+            actual_sample_size = len(sampled_df)
+            actual_ratio = actual_churned / actual_sample_size if actual_sample_size > 0 else 0
+            
+            print(f"  Sampled {actual_sample_size:,} rows: {actual_churned:,} churned ({actual_ratio*100:.1f}%), {actual_not_churned:,} not-churned ({(1-actual_ratio)*100:.1f}%)")
+            print(f"    Available: {available_churned:,} churned, {available_not_churned:,} not-churned (from {available_rows:,} total)")
+        else:
+            # Original random sampling without class balance
+            actual_sample_size = min(args.sample_size, available_rows)
 
-        sampled_df = yearly_df.sample(
-            n=actual_sample_size, 
-            shuffle=True, 
-            seed=args.seed
-        )
+            sampled_df = yearly_df.sample(
+                n=actual_sample_size, 
+                shuffle=True, 
+                seed=args.seed
+            )
+            print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
 
         sampled_train_yearly_dfs[year] = sampled_df
-        print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
 
     # --- 5. Saving Results ---
     print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
@@ -250,6 +303,18 @@ def setup_argparser():
         type=int,
         default=123,
         help="Random seed for sampling. (Default: 123)"
+    )
+    parser.add_argument(
+        "--churn_ratio",
+        type=float,
+        default=None,
+        help="Target ratio of churned (class 1) samples (e.g., 0.6 for 60%% churned). If not set, random sampling without class balance is used."
+    )
+    parser.add_argument(
+        "--churn_column",
+        type=str,
+        default="churn",
+        help="Name of the binary churn label column. (Default: 'churn')"
     )
     
     # --- Output Parameters ---
