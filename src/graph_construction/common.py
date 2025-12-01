@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.utils import degree, to_undirected
 from sklearn.model_selection import train_test_split
+import math
 
 __all__ = [
     "special_print",
@@ -166,9 +167,16 @@ def return_data_partition_masks(nodes_id: np.ndarray | torch.Tensor) -> Mapping[
 # ---------------------------------------------------------------------------
 
 def create_node_feature_table(edge_index: torch.Tensor, n_nodes: int) -> torch.Tensor:
-    """Return one-hot degree feature matrix (shape [N, max_deg+1])."""
-    deg = degree(edge_index[0], num_nodes=n_nodes, dtype=torch.long)
-    x = F.one_hot(deg).to(torch.float32)
+    """Return log-binned degree feature matrix (shape [N, num_bins])."""
+    deg = degree(edge_index[0], num_nodes=n_nodes, dtype=torch.float32)
+
+    max_bin = int(math.ceil(math.log10(n_nodes)))  # cleaner for scalar
+
+    # Log-scale binning: 0, 1-10, 11-100, 101-1000, 1001-10000, 10001+
+    # Using log10(deg + 1) and flooring gives natural bins
+    log_deg = torch.floor(torch.log10(deg + 1)).long()  # +1 to handle degree 0
+    log_deg = torch.clamp(log_deg, max=max_bin)  # Cap at max_bin
+    x = F.one_hot(log_deg, num_classes=max_bin+1).to(torch.float32)  
     return x
 
 
