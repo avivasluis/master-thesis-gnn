@@ -136,7 +136,7 @@ def main() -> None:
             directory_name=args.column,
             threshold=data.threshold,
             density=data.density,
-            output_base_path = f'{args.out}_degree_vector',
+            output_base_path = f'{args.out}',
         )
 
     for data in data_features_objects:
@@ -145,7 +145,8 @@ def main() -> None:
             directory_name=args.column,
             threshold=data.threshold,
             density=data.density,
-            output_base_path = f'{args.out}_feature_vector',
+            output_base_path = f'{args.out}',
+            node_feature_degree = False,
         )
 
 if __name__ == "__main__":
