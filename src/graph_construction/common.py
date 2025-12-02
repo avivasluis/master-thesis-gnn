@@ -290,9 +290,13 @@ def save_data_object(
     density: float,
     output_base_path: str | os.PathLike = "./graphs",
     similarity_matrix_flag: bool = False,
+    node_feature_degree: bool = True
 ) -> str:
     """Save a :class:`torch_geometric.data.Data` and return the filepath."""
-    output_dir = os.path.join(output_base_path, directory_name)
+    if node_feature_degree:
+        output_dir = os.path.join(output_base_path, directory_name, 'node_feature_degree')
+    else:
+        output_dir = os.path.join(output_base_path, directory_name, 'node_feature_data')
     os.makedirs(output_dir, exist_ok=True)
     if similarity_matrix_flag:
         file_name = "similarity_matrix.npy"
