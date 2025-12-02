@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.utils import degree, to_undirected
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 import math
 
 __all__ = [
@@ -31,7 +32,8 @@ __all__ = [
     "build_edge_index",
     "return_data_partition_masks",
     "find_threshold_for_target_density",
-    "create_node_feature_table",
+    "create_node_feature_table_degree",
+    "create_node_feature_table_data_user_churn",
     "save_data_object",
     "make_stratified_masks",
 ]
@@ -137,8 +139,51 @@ def build_edge_index(similarity_matrix: np.ndarray, threshold: float) -> torch.T
 
 
 # ---------------------------------------------------------------------------
-# train/val/test mask split (simple 80/10/10)
+# train/val/test mask split
 # ---------------------------------------------------------------------------
+
+def make_stratified_masks(
+    y: np.ndarray | torch.Tensor,
+    *,
+    train_ratio: float = 0.8,
+    val_ratio: float = 0.1,
+    seed: int = 123,
+) -> Mapping[str, torch.Tensor]:
+    """Return boolean masks with stratified 80/10/10 splits.
+
+    Parameters
+    ----------
+    y
+        1-D label tensor/array.  Must be the **same order** as rows/nodes.
+    train_ratio, val_ratio
+        Fractions that sum to ≤1.  Test ratio is inferred.
+    seed
+        Random seed to make the split reproducible across different runs and
+        across different graph constructions (so long as the node order stays
+        identical).
+    """
+    y_np = y.detach().cpu().numpy() if isinstance(y, torch.Tensor) else np.asarray(y)
+
+    idx = np.arange(len(y_np))
+
+    idx_train, idx_tmp, y_train, y_tmp = train_test_split(
+        idx, y_np, stratify=y_np, test_size=1 - train_ratio, random_state=seed
+    )
+
+    relative_val = val_ratio / (1 - train_ratio)  # val share within tmp
+    idx_val, idx_test, _, _ = train_test_split(
+        idx_tmp, y_tmp, stratify=y_tmp, test_size=1 - relative_val, random_state=seed
+    )
+
+    mask = lambda ids: torch.as_tensor(np.isin(idx, ids), dtype=torch.bool)
+
+    return {
+        "train_mask": mask(idx_train),
+        "val_mask": mask(idx_val),
+        "test_mask": mask(idx_test),
+    }
+
+
 
 def return_data_partition_masks(nodes_id: np.ndarray | torch.Tensor) -> Mapping[str, torch.Tensor]:
     """Return boolean masks for *row-wise* splits 80/10/10.
@@ -166,7 +211,7 @@ def return_data_partition_masks(nodes_id: np.ndarray | torch.Tensor) -> Mapping[
 # node features (one-hot degree)
 # ---------------------------------------------------------------------------
 
-def create_node_feature_table(edge_index: torch.Tensor, n_nodes: int) -> torch.Tensor:
+def create_node_feature_table_degree(edge_index: torch.Tensor, n_nodes: int) -> torch.Tensor:
     """Return log-binned degree feature matrix (shape [N, num_bins])."""
     deg = degree(edge_index[0], num_nodes=n_nodes, dtype=torch.float32)
 
@@ -179,6 +224,17 @@ def create_node_feature_table(edge_index: torch.Tensor, n_nodes: int) -> torch.T
     x = F.one_hot(log_deg, num_classes=max_bin+1).to(torch.float32)  
     return x
 
+def create_node_feature_table_data_user_churn(train_feature_matrix: pd.DataFrame, masks_dict: dict) -> torch.Tensor:
+    """Return Tensor (num_nodes, 16) for data informed node feature table"""
+    train_feature_matrix_num = train_feature_matrix.drop(['timestamp', 'customer_id', 'churn'], axis = 'columns')
+    scaler = StandardScaler()
+    train_mask = masks_dict['train_mask']
+    
+    x = train_feature_matrix_num.values
+    scaler.fit(x[train_mask.cpu().numpy()])
+    x_scaled = scaler.transform(x)
+    node_features = torch.tensor(x_scaled, dtype=torch.float32)
+    return node_features
 
 # ---------------------------------------------------------------------------
 # threshold search – reused by every pipeline
@@ -249,45 +305,3 @@ def save_data_object(
         torch.save(data, filepath)
     print(f"Saved: {os.path.relpath(filepath, output_base_path)}")
     return filepath
-
-
-def make_stratified_masks(
-    y: np.ndarray | torch.Tensor,
-    *,
-    train_ratio: float = 0.8,
-    val_ratio: float = 0.1,
-    seed: int = 123,
-) -> Mapping[str, torch.Tensor]:
-    """Return boolean masks with stratified 80/10/10 splits.
-
-    Parameters
-    ----------
-    y
-        1-D label tensor/array.  Must be the **same order** as rows/nodes.
-    train_ratio, val_ratio
-        Fractions that sum to ≤1.  Test ratio is inferred.
-    seed
-        Random seed to make the split reproducible across different runs and
-        across different graph constructions (so long as the node order stays
-        identical).
-    """
-    y_np = y.detach().cpu().numpy() if isinstance(y, torch.Tensor) else np.asarray(y)
-
-    idx = np.arange(len(y_np))
-
-    idx_train, idx_tmp, y_train, y_tmp = train_test_split(
-        idx, y_np, stratify=y_np, test_size=1 - train_ratio, random_state=seed
-    )
-
-    relative_val = val_ratio / (1 - train_ratio)  # val share within tmp
-    idx_val, idx_test, _, _ = train_test_split(
-        idx_tmp, y_tmp, stratify=y_tmp, test_size=1 - relative_val, random_state=seed
-    )
-
-    mask = lambda ids: torch.as_tensor(np.isin(idx, ids), dtype=torch.bool)
-
-    return {
-        "train_mask": mask(idx_train),
-        "val_mask": mask(idx_val),
-        "test_mask": mask(idx_test),
-    }

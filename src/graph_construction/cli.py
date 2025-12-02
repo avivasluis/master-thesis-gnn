@@ -84,6 +84,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--dataset", type=str, default='rel-amazon', help="Origin dataset of the graph")
     p.add_argument("--task", type=str, default='user-churn', help="Task of the dataset the graph is modeling")
     p.add_argument("--time_window", type=str, required=True, help="Time window from which the graph is being modeled")
+    p.add_argument("--feature_df_path", type=str, required=True, help="Path to the parquet file for the datafram with the feature vector.")
     return p.parse_args()
 
 def main() -> None:
@@ -112,12 +113,13 @@ def main() -> None:
         dataset = args.dataset,
         task = args.task,
         time_window = args.time_window,
+        feature_df = pd.read_parquet(args.feature_df_path)
     )
 
     if args.type == "categorical":
         build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
 
-    datas, similarity_matrix = build_graph(**build_kwargs)
+    data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
 
     save_data_object(
         similarity_matrix,
@@ -128,13 +130,22 @@ def main() -> None:
         similarity_matrix_flag = True
     )
 
-    for data in datas:
+    for data in data_degree_objects:
         save_data_object(
             data,
             directory_name=args.column,
             threshold=data.threshold,
             density=data.density,
-            output_base_path=args.out,
+            output_base_path = f'{args.out}_degree_vector',
+        )
+
+    for data in data_features_objects:
+        save_data_object(
+            data,
+            directory_name=args.column,
+            threshold=data.threshold,
+            density=data.density,
+            output_base_path = f'{args.out}_feature_vector',
         )
 
 if __name__ == "__main__":

@@ -19,7 +19,8 @@ from torch_geometric.data import Data
 
 from .common import (
     build_edge_index,
-    create_node_feature_table,
+    create_node_feature_table_degree,
+    create_node_feature_table_data_user_churn,
     find_threshold_for_target_density,
     parse_string_list,
     return_data_partition_masks,
@@ -117,8 +118,9 @@ def build_graph(
     verbose: bool = True,
     dataset: str = 'rel-amazon',
     task: str = 'user-churn',
-    time_window: str = '-6mo'
-) -> list[Data]:
+    time_window: str = '-6mo',
+    feature_df: pd.DataFrame,
+) -> tuple[list[Data], list[Data], np.ndarray]:
     """Construct one :class:`torch_geometric.data.Data` object **per** target density.
 
     Parameters
@@ -142,6 +144,8 @@ def build_graph(
         Maximum binary-search iterations per density.
     verbose
         Whether to print progress information.
+    feature_df
+        DataFrame holding feature data for every node.
     """
 
     df = df.copy()
@@ -164,7 +168,19 @@ def build_graph(
     y = torch.as_tensor(df[label_column].values, dtype=torch.long) if label_column in df else None
     masks = make_stratified_masks(y) if y is not None else return_data_partition_masks(np.arange(n_nodes))
 
-    data_objects: list[Data] = []
+    if len(feature_df) != n_nodes:
+        raise ValueError(f"Feature DataFrame length {len(feature_df)} does not match Graph DataFrame length {n_nodes}")
+
+    # Verify alignment of customer_id if present
+    if "customer_id" in df.columns and "customer_id" in feature_df.columns:
+        if not np.array_equal(df["customer_id"].values, feature_df["customer_id"].values):
+            raise ValueError("Structure mismatch: 'customer_id' columns do not align between input DF and feature DF.")
+    
+    # Compute static features once
+    x_features = create_node_feature_table_data_user_churn(feature_df, masks)
+
+    data_degree_objects: list[Data] = []
+    data_features_objects: list[Data] = []
     for target in target_densities:
         thr = find_threshold_for_target_density(
             similarity_matrix,
@@ -178,9 +194,10 @@ def build_graph(
         density = return_density(n_nodes, n_edges)
         assortativity = compute_assortativity_categorical(edge_index, y) if y is not None else None
 
-        x = create_node_feature_table(edge_index, n_nodes)
-        data = Data(
-            x=x, 
+        x_degree = create_node_feature_table_degree(edge_index, n_nodes)
+
+        data_degree = Data(
+            x=x_degree, 
             edge_index=edge_index, 
             y=y, 
             masks=masks, 
@@ -192,7 +209,21 @@ def build_graph(
             time_window = time_window
             )
         
-        data_objects.append(data)
+        data_features = Data(
+            x=x_features, 
+            edge_index=edge_index, 
+            y=y, 
+            masks=masks, 
+            density=round(density, 2),
+            assortativity=assortativity,
+            threshold = round(thr, 5),
+            dataset = dataset,
+            task = task,
+            time_window = time_window
+            )
+        
+        data_degree_objects.append(data_degree)
+        data_features_objects.append(data_features)
         if verbose:
             special_print(
                 {
@@ -203,4 +234,4 @@ def build_graph(
                 name=f"density {target}% summary",
             )
 
-    return data_objects, similarity_matrix
+    return data_degree_objects, data_features_objects, similarity_matrix
