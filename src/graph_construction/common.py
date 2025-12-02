@@ -293,17 +293,21 @@ def save_data_object(
     node_feature_degree: bool = True
 ) -> str:
     """Save a :class:`torch_geometric.data.Data` and return the filepath."""
-    if node_feature_degree:
-        output_dir = os.path.join(output_base_path, directory_name, 'node_feature_degree')
-    else:
-        output_dir = os.path.join(output_base_path, directory_name, 'node_feature_data')
-    os.makedirs(output_dir, exist_ok=True)
     if similarity_matrix_flag:
+        output_dir = os.path.join(output_base_path, directory_name)
+        os.makedirs(output_dir, exist_ok=True)
+
         file_name = "similarity_matrix.npy"
         filepath = os.path.join(output_dir, file_name)
-        # save as compressed numpy binary for easy reload
         np.save(filepath, data)
     else:
+        if node_feature_degree:
+            output_dir = os.path.join(output_base_path, directory_name, 'node_feature_degree')
+            os.makedirs(output_dir, exist_ok=True)
+        else:
+            output_dir = os.path.join(output_base_path, directory_name, 'node_feature_data')
+            os.makedirs(output_dir, exist_ok=True)
+        
         file_name = f"thr_{threshold:.2f}__{density:.2f}%.pt"
         filepath = os.path.join(output_dir, file_name)
         torch.save(data, filepath)
