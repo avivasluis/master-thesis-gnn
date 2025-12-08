@@ -29,3 +29,6 @@ temp_/
 
 #Docs
 project_docs/
+
+#Working script
+src\graph_construction\fixed_weight_multicolumn_graph.py
