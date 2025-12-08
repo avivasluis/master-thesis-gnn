@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import Dict
+from typing import Dict, List
 from pathlib import Path
 import polars as pl
 
@@ -146,115 +146,120 @@ def main(args):
             )
             
             lfs_to_sample_from[year] = train_this_year_lf
-    
-    #print(lfs_to_sample_from[2013].head(15).collect())
-    #print("Number of rows in lfs_to_sample_from[2013]:", lfs_to_sample_from[2013].collect().height)
 
-    # --- 4. Sampling ---
-    sampled_train_yearly_dfs: Dict[int, pl.DataFrame] = {}
+    # --- 4. Collect and Combine All Yearly Data ---
+    print("\n--- Collecting and combining data from all years ---")
+    yearly_dfs: List[pl.DataFrame] = []
     
-    if args.churn_ratio is not None:
-        print(f"\n--- Stratified Sampling {args.sample_size:,} Rows Per Year (Target: {args.churn_ratio*100:.0f}% churned / {(1-args.churn_ratio)*100:.0f}% not-churned) ---")
-    else:
-        print(f"\n--- Randomly Sampling {args.sample_size:,} Rows Per Year ---")
-
     for year, yearly_lf in lfs_to_sample_from.items():
         print(f"Year {year}: Collecting filtered data...")
-        
-        # We must collect before we can get an accurate length or sample
         try:
             yearly_df = yearly_lf.collect()
+            if len(yearly_df) > 0:
+                yearly_dfs.append(yearly_df)
+                print(f"  Collected {len(yearly_df):,} rows from {year}")
+            else:
+                print(f"  Year {year}: No data available, skipping.")
         except Exception as e:
             print(f"  Error collecting data for {year}: {e}", file=sys.stderr)
             continue
-            
-        available_rows = len(yearly_df)
+    
+    if not yearly_dfs:
+        print("Error: No data collected from any year.", file=sys.stderr)
+        return 1
+    
+    # Concatenate all yearly DataFrames into one combined pool
+    combined_df = pl.concat(yearly_dfs)
+    available_rows = len(combined_df)
+    print(f"\nTotal combined pool: {available_rows:,} rows")
 
-        if available_rows == 0:
-            print(f"Year {year}: No data available, skipping.")
-            continue
-
-        if args.churn_ratio is not None:
-            # Stratified sampling to preserve class balance
-            churn_col = args.churn_column
-            
-            # Split by churn label
-            churned_df = yearly_df.filter(pl.col(churn_col) == 1)
-            not_churned_df = yearly_df.filter(pl.col(churn_col) == 0)
-            
-            available_churned = len(churned_df)
-            available_not_churned = len(not_churned_df)
-            
-            # Calculate target samples for each class
-            target_churned = int(args.sample_size * args.churn_ratio)
-            target_not_churned = args.sample_size - target_churned
-            
-            # Adjust if not enough samples in either class
-            actual_churned = min(target_churned, available_churned)
-            actual_not_churned = min(target_not_churned, available_not_churned)
-            
-            # If one class is short, try to compensate with the other (up to available)
-            if actual_churned < target_churned:
-                shortfall = target_churned - actual_churned
-                extra_not_churned = min(shortfall, available_not_churned - actual_not_churned)
-                actual_not_churned += extra_not_churned
-            elif actual_not_churned < target_not_churned:
-                shortfall = target_not_churned - actual_not_churned
-                extra_churned = min(shortfall, available_churned - actual_churned)
-                actual_churned += extra_churned
+    # --- 5. Sampling n_files times with sequential seeds ---
+    sampled_dfs: List[pl.DataFrame] = []
+    
+    if args.churn_ratio is not None:
+        print(f"\n--- Stratified Sampling {args.sample_size:,} Rows x {args.n_files} Files (Target: {args.churn_ratio*100:.0f}% churned / {(1-args.churn_ratio)*100:.0f}% not-churned) ---")
+        
+        # Pre-split by churn label (only need to do this once)
+        churn_col = args.churn_column
+        churned_df = combined_df.filter(pl.col(churn_col) == 1)
+        not_churned_df = combined_df.filter(pl.col(churn_col) == 0)
+        
+        available_churned = len(churned_df)
+        available_not_churned = len(not_churned_df)
+        print(f"  Available: {available_churned:,} churned, {available_not_churned:,} not-churned")
+        
+        # Calculate target samples for each class
+        target_churned = int(args.sample_size * args.churn_ratio)
+        target_not_churned = args.sample_size - target_churned
+        
+        # Adjust if not enough samples in either class
+        actual_churned = min(target_churned, available_churned)
+        actual_not_churned = min(target_not_churned, available_not_churned)
+        
+        # If one class is short, try to compensate with the other (up to available)
+        if actual_churned < target_churned:
+            shortfall = target_churned - actual_churned
+            extra_not_churned = min(shortfall, available_not_churned - actual_not_churned)
+            actual_not_churned += extra_not_churned
+        elif actual_not_churned < target_not_churned:
+            shortfall = target_not_churned - actual_not_churned
+            extra_churned = min(shortfall, available_churned - actual_churned)
+            actual_churned += extra_churned
+        
+        for i in range(args.n_files):
+            current_seed = args.seed + i
             
             # Sample from each class
             sampled_churned = churned_df.sample(
-                n=actual_churned, shuffle=True, seed=args.seed
+                n=actual_churned, shuffle=True, seed=current_seed
             ) if actual_churned > 0 else churned_df.head(0)
             
             sampled_not_churned = not_churned_df.sample(
-                n=actual_not_churned, shuffle=True, seed=args.seed
+                n=actual_not_churned, shuffle=True, seed=current_seed
             ) if actual_not_churned > 0 else not_churned_df.head(0)
             
             # Combine and shuffle
             sampled_df = pl.concat([sampled_churned, sampled_not_churned]).sample(
-                fraction=1.0, shuffle=True, seed=args.seed
+                fraction=1.0, shuffle=True, seed=current_seed
             )
+            
+            sampled_dfs.append(sampled_df)
             
             actual_sample_size = len(sampled_df)
             actual_ratio = actual_churned / actual_sample_size if actual_sample_size > 0 else 0
+            print(f"  File {i}: Sampled {actual_sample_size:,} rows (seed={current_seed}): {actual_churned:,} churned ({actual_ratio*100:.1f}%), {actual_not_churned:,} not-churned ({(1-actual_ratio)*100:.1f}%)")
+    else:
+        print(f"\n--- Randomly Sampling {args.sample_size:,} Rows x {args.n_files} Files ---")
+        
+        actual_sample_size = min(args.sample_size, available_rows)
+        
+        for i in range(args.n_files):
+            current_seed = args.seed + i
             
-            print(f"  Sampled {actual_sample_size:,} rows: {actual_churned:,} churned ({actual_ratio*100:.1f}%), {actual_not_churned:,} not-churned ({(1-actual_ratio)*100:.1f}%)")
-            print(f"    Available: {available_churned:,} churned, {available_not_churned:,} not-churned (from {available_rows:,} total)")
-        else:
-            # Original random sampling without class balance
-            actual_sample_size = min(args.sample_size, available_rows)
-
-            sampled_df = yearly_df.sample(
+            sampled_df = combined_df.sample(
                 n=actual_sample_size, 
                 shuffle=True, 
-                seed=args.seed
+                seed=current_seed
             )
-            print(f"  Sampled {actual_sample_size:,} rows (from {available_rows:,} available)")
+            sampled_dfs.append(sampled_df)
+            print(f"  File {i}: Sampled {actual_sample_size:,} rows (seed={current_seed})")
 
-        sampled_train_yearly_dfs[year] = sampled_df
-
-    # --- 5. Saving Results ---
-    print(f"\n--- Saving Sampled DataFrames for Years: {args.years_to_save} ---")
+    # --- 6. Saving Results ---
+    print(f"\n--- Saving {args.n_files} Sampled DataFrames ---")
     
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving files to: {output_dir.resolve()}")
     
     saved_count = 0
-    for year in args.years_to_save:
-        if year in sampled_train_yearly_dfs:
-            df_to_save = sampled_train_yearly_dfs[year]
-            output_path = output_dir / f"{args.output_prefix}_{year}.parquet"
-            try:
-                df_to_save.write_parquet(output_path)
-                print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
-                saved_count += 1
-            except Exception as e:
-                print(f"  Error saving file {output_path}: {e}", file=sys.stderr)
-        else:
-            print(f"  Warning: No sampled data found for year {year}. Nothing to save.")
+    for i, df_to_save in enumerate(sampled_dfs):
+        output_path = output_dir / f"{args.output_prefix}{i}.parquet"
+        try:
+            df_to_save.write_parquet(output_path)
+            print(f"  Successfully saved: {output_path} ({len(df_to_save):,} rows)")
+            saved_count += 1
+        except Exception as e:
+            print(f"  Error saving file {output_path}: {e}", file=sys.stderr)
 
     print(f"\nProcessing complete. Saved {saved_count} file(s).")
     return 0
@@ -296,7 +301,13 @@ def setup_argparser():
         "--sample_size",
         type=int,
         default=5000,
-        help="The target number of rows to sample per year. (Default: 5000)"
+        help="The target number of rows to sample from the combined pool. (Default: 5000)"
+    )
+    parser.add_argument(
+        "--n_files",
+        type=int,
+        default=1,
+        help="Number of output files to generate with different random seeds. (Default: 1)"
     )
     parser.add_argument(
         "--seed",
@@ -323,13 +334,6 @@ def setup_argparser():
         type=str,
         default=".",
         help="Directory to save the output parquet files. (Default: current directory)"
-    )
-    parser.add_argument(
-        "--years_to_save",
-        type=int,
-        nargs='+',
-        default=[2012, 2013, 2014, 2015],
-        help="List of years to process and save. (Default: 2012 2013 2014 2015)"
     )
     parser.add_argument(
         "--output_prefix",
