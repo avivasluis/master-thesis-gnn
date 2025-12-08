@@ -34,7 +34,7 @@ from graph_construction.common import save_data_object, special_print
 PIPELINES = {
     "categorical": "graph_construction.categorical",
     "numeric": "graph_construction.numeric",
-    "review_count": "graph_construction.review_count",
+    "review_count": "graph_construction.review_count"
 }
 
 PREPROCESSORS = {
