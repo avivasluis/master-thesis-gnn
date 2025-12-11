@@ -107,7 +107,8 @@ def main(args):
     save_data_parquet(product_product_id, 'product_id', args.output_path)
 
     #data_columns = ['title', 'brand', 'description', 'price', 'category']
-    data_columns = ['brand', 'price', 'category']
+    #data_columns = ['brand', 'price', 'category']
+    data_columns = ['price']
     expanded_train_foreign_keys = product_product_id
     foreign_key = 'product_id'
     dimention_table = args.product_lazy
@@ -119,11 +120,11 @@ def main(args):
         
 
     # Base join for review table where I collect the list of foreign keys in the fact table inside the time_window!
-    review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
-    if args.verbose:
-        print('*'*50)
-        print(f'\n review_review_id -> \n {review_review_id.head().collect()}')
-    save_data_parquet(review_review_id, 'review_id', args.output_path)
+    #review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
+    #if args.verbose:
+    #    print('*'*50)
+    #    print(f'\n review_review_id -> \n {review_review_id.head().collect()}')
+    #save_data_parquet(review_review_id, 'review_id', args.output_path)
 
     #data_columns = ['review_text', 'summary', 'rating', 'verified']
     #data_columns = ['summary', 'rating', 'verified']

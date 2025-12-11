@@ -122,14 +122,14 @@ def main() -> None:
 
     data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
 
-    save_data_object(
-        similarity_matrix,
-        directory_name=args.column,
-        threshold=0.0,
-        density=0.0,
-        output_base_path=args.out,
-        similarity_matrix_flag = True
-    )
+    #save_data_object(
+    #    similarity_matrix,
+    #    directory_name=args.column,
+    #    threshold=0.0,
+    #    density=0.0,
+    #    output_base_path=args.out,
+    #    similarity_matrix_flag = True
+    #)
 
     for data in data_degree_objects:
         save_data_object(
@@ -140,15 +140,15 @@ def main() -> None:
             output_base_path = f'{args.out}',
         )
 
-    for data in data_features_objects:
-        save_data_object(
-            data,
-            directory_name=args.column,
-            threshold=data.threshold,
-            density=data.density,
-            output_base_path = f'{args.out}',
-            node_feature_degree = False,
-        )
+    #for data in data_features_objects:
+    #    save_data_object(
+    #        data,
+    #        directory_name=args.column,
+    #        threshold=data.threshold,
+    #        density=data.density,
+    #        output_base_path = f'{args.out}',
+    #        node_feature_degree = False,
+    #    )
 
 if __name__ == "__main__":
     main()
