@@ -6,7 +6,6 @@ from src.models.gcn import GCN
 from src.models.mlp import MLP 
 from src.models.gin import GIN 
 from src.models.train_evaluate import train_and_evaluate
-from src.data.return_sub_graph import get_subgraph_first_n_nodes
 from src.graph_analysis.metrics import compute_density, compute_assortativity_categorical, compute_homophily_ratio
 import os
 import json
