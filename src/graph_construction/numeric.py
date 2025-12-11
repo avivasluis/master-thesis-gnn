@@ -181,4 +181,4 @@ def build_graph(
             )
 
     #return data_degree_objects, data_features_objects, similarity_matrix
-    return data_degree_objects,
+    return data_degree_objects
