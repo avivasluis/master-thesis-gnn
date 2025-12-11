@@ -114,13 +114,14 @@ def main() -> None:
         dataset = args.dataset,
         task = args.task,
         time_window = args.time_window,
-        feature_df = pd.read_parquet(args.feature_df_path)
+        #feature_df = pd.read_parquet(args.feature_df_path)
     )
 
     if args.type == "categorical":
         build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
 
-    data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
+    #data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
+    data_degree_objects = build_graph(**build_kwargs)
 
     #save_data_object(
     #    similarity_matrix,
