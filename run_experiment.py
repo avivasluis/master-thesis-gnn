@@ -4,8 +4,10 @@ import numpy as np
 import random
 from src.models.gcn import GCN 
 from src.models.mlp import MLP 
-from src.models.gin import GIN 
+from src.models.gin import GIN
+from src.models.sage import GraphSAGE
 from src.models.train_evaluate import train_and_evaluate
+from src.models.train_evaluate_neighbor_loader import train_and_evaluate as train_and_evaluate_neighbor_loader
 from src.graph_analysis.metrics import compute_density, compute_assortativity_categorical, compute_homophily_ratio
 import os
 import json
@@ -26,6 +28,7 @@ def main(args):
     print(f"Start training")
     print('Model to use: ->')
     print(args.model)
+    print(f'Training mode: {"NeighborLoader (mini-batch)" if args.use_neighbor_loader else "Full-batch"}')
     print()
 
     log_file = None
@@ -33,11 +36,22 @@ def main(args):
         os.makedirs(args.log_file_path, exist_ok=True)
         log_file = os.path.join(args.log_file_path, args.log_file_name)
 
-    train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate(
-        args.model, args.data,
-        lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
-        n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file
-    )
+    if args.use_neighbor_loader:
+        # Mini-batch training with NeighborLoader
+        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate_neighbor_loader(
+            args.model, args.data,
+            lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
+            n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file,
+            batch_size=args.batch_size, num_neighbors=args.num_neighbors, num_workers=args.num_workers,
+            use_hierarchical_sampling=args.use_hierarchical_sampling
+        )
+    else:
+        # Full-batch training (original)
+        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate(
+            args.model, args.data,
+            lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
+            n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file
+        )
 
     results = {
         'graph_name': args.graph,
@@ -53,7 +67,7 @@ def main(args):
         'time_window': getattr(args.data, 'time_window', args.time_window),
         'dataset': getattr(args.data, 'dataset', args.dataset),
         'task': getattr(args.data, 'task', args.task),
-        'GNN_model': args.GNN_model ,
+        'GNN_model': args.GNN_model,
         'seed': args.seed,
         'num_layers': args.num_layers,
         'hidden_channels': args.hidden_channels,
@@ -61,6 +75,12 @@ def main(args):
         'lr': args.lr,
         'weight_decay': args.weight_decay,
         'dropout': args.dropout,
+        # NeighborLoader parameters
+        'use_neighbor_loader': args.use_neighbor_loader,
+        'batch_size': args.batch_size if args.use_neighbor_loader else None,
+        'num_neighbors': args.num_neighbors if args.use_neighbor_loader else None,
+        'use_hierarchical_sampling': args.use_hierarchical_sampling if args.use_neighbor_loader else None,
+        # Results
         'train_acc': train_acc,
         'train_f1': train_f1,
         'train_auc': train_auc,
@@ -99,6 +119,14 @@ if __name__ == '__main__':
     parser.add_argument('--pos_weight', type=float, default=None, help='')
     parser.add_argument('--n_epochs', type=int, default=100, help='')
 
+    # NeighborLoader arguments
+    parser.add_argument('--use_neighbor_loader', action='store_true', help='Use NeighborLoader for mini-batch training (recommended for large graphs)')
+    parser.add_argument('--batch_size', type=int, default=1024, help='Batch size for NeighborLoader training')
+    parser.add_argument('--num_neighbors', type=int, nargs='+', default=None, help='Number of neighbors to sample per hop (e.g., --num_neighbors 25 10)')
+    parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for data loading (use 0 for Windows)')
+    parser.add_argument('--use_hierarchical_sampling', action='store_true', default=True, help='Use hierarchical sampling optimization')
+    parser.add_argument('--no_hierarchical_sampling', action='store_false', dest='use_hierarchical_sampling', help='Disable hierarchical sampling')
+
     parser.add_argument('--log_file_path', type=str, default=None, help='Path of the file to save results (without data column)')
     parser.add_argument('--log_file_name', type=str, default=None, help='Name of the file to save results.')
     parser.add_argument('--data_column', type=str, default=None, help='Data column from which the graph was created')
@@ -119,12 +147,7 @@ if __name__ == '__main__':
         
     processed_graph_path = f'{args.graph}'
 
-    if args.n_nodes == -1:
-        args.data = torch.load(processed_graph_path, weights_only=False)
-    else:
-        data = torch.load(processed_graph_path, weights_only=False)
-        args.data = get_subgraph_first_n_nodes(data, args.n_nodes)
-
+    args.data = torch.load(processed_graph_path, weights_only=False)
 
     if args.GNN_model == 'MLP':
         args.model = MLP(in_channels=args.data.x.shape[1], 
@@ -140,6 +163,12 @@ if __name__ == '__main__':
                         dropout = args.dropout)
     elif args.GNN_model == 'GIN':
         args.model = GIN(in_channels=args.data.x.shape[1], 
+                        hidden_channels=args.hidden_channels, 
+                        out_channels=1,
+                        num_layers = args.num_layers,
+                        dropout = args.dropout)
+    elif args.GNN_model == 'GraphSAGE':
+        args.model = GraphSAGE(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
                         out_channels=1,
                         num_layers = args.num_layers,

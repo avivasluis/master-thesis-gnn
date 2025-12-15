@@ -1,25 +1,56 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import SAGEConv
 from torch_geometric.utils import trim_to_layer
 
-class GCN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, dropout=0.5):
+class GraphSAGE(torch.nn.Module):
+    """GraphSAGE model.
+
+    Parameters
+    ----------
+    in_channels : int
+        Dimensionality of input node features.
+    hidden_channels : int
+        Hidden dimension size.
+    out_channels : int
+        Dimensionality of output layer (e.g., number of classes).
+    num_layers : int, optional (default=2)
+        Number of SAGEConv layers to use. If ``num_layers == 1`` the model
+        consists of a single convolution from ``in_channels`` to ``out_channels``.
+    dropout : float, optional (default=0.5)
+        Dropout probability applied after every hidden layer.
+    aggr : str, optional (default="mean")
+        Aggregation method to use in ``SAGEConv`` (e.g., "mean", "max", "sum").
+    """
+
+    def __init__(self,
+                 in_channels: int,
+                 hidden_channels: int,
+                 out_channels: int,
+                 num_layers: int = 2,
+                 dropout: float = 0.5,
+                 aggr: str = "mean"):
         super().__init__()
+
         self.convs = torch.nn.ModuleList()
         self.dropout = dropout
         self.num_layers = num_layers
 
         if num_layers == 1:
-            self.convs.append(GCNConv(in_channels, out_channels))
+            self.convs.append(SAGEConv(in_channels, out_channels, aggr=aggr))
         else:
-            self.convs.append(GCNConv(in_channels, hidden_channels))
+            # Input layer
+            self.convs.append(SAGEConv(in_channels, hidden_channels, aggr=aggr))
+
+            # Hidden layers
             for _ in range(num_layers - 2):
-                self.convs.append(GCNConv(hidden_channels, hidden_channels))
-            self.convs.append(GCNConv(hidden_channels, out_channels))
+                self.convs.append(SAGEConv(hidden_channels, hidden_channels, aggr=aggr))
+
+            # Output layer
+            self.convs.append(SAGEConv(hidden_channels, out_channels, aggr=aggr))
 
     def forward(self, x, edge_index, num_sampled_nodes_per_hop=None, num_sampled_edges_per_hop=None):
-        """Forward pass with optional hierarchical sampling support.
+        """Forward pass.
 
         Parameters
         ----------
@@ -47,3 +78,4 @@ class GCN(torch.nn.Module):
                 x = x.relu()
                 x = F.dropout(x, p=self.dropout, training=self.training)
         return x
+
