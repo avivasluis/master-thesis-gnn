@@ -120,6 +120,7 @@ def build_graph(
     task: str = 'user-churn',
     time_window: str = '-6mo',
     feature_df: pd.DataFrame,
+    return_only_sim_matrix: bool = False
 ) -> tuple[list[Data], list[Data], np.ndarray]:
     """Construct one :class:`torch_geometric.data.Data` object **per** target density.
 
@@ -164,74 +165,77 @@ def build_graph(
     if verbose:
         special_print(similarity_matrix.shape, "similarity_matrix.shape")
 
-    n_nodes = len(df)
-    y = torch.as_tensor(df[label_column].values, dtype=torch.long) if label_column in df else None
-    masks = make_stratified_masks(y) if y is not None else return_data_partition_masks(np.arange(n_nodes))
+    if return_only_sim_matrix:
+        return similarity_matrix
+    else:
+        n_nodes = len(df)
+        y = torch.as_tensor(df[label_column].values, dtype=torch.long) if label_column in df else None
+        masks = make_stratified_masks(y) if y is not None else return_data_partition_masks(np.arange(n_nodes))
 
-    if len(feature_df) != n_nodes:
-        raise ValueError(f"Feature DataFrame length {len(feature_df)} does not match Graph DataFrame length {n_nodes}")
+        if len(feature_df) != n_nodes:
+            raise ValueError(f"Feature DataFrame length {len(feature_df)} does not match Graph DataFrame length {n_nodes}")
 
-    # Verify alignment of customer_id if present
-    if "customer_id" in df.columns and "customer_id" in feature_df.columns:
-        if not np.array_equal(df["customer_id"].values, feature_df["customer_id"].values):
-            raise ValueError("Structure mismatch: 'customer_id' columns do not align between input DF and feature DF.")
-    
-    # Compute static features once
-    x_features = create_node_feature_table_data_user_churn(feature_df, masks)
-
-    data_degree_objects: list[Data] = []
-    data_features_objects: list[Data] = []
-    for target in target_densities:
-        thr = find_threshold_for_target_density(
-            similarity_matrix,
-            n_nodes,
-            target,
-            tolerance=density_tol,
-            max_iter=max_iter,
-        )
-        edge_index = build_edge_index(similarity_matrix, thr)
-        n_edges = edge_index.size(1) / 2
-        density = return_density(n_nodes, n_edges)
-        assortativity = compute_assortativity_categorical(edge_index, y) if y is not None else None
-
-        x_degree = create_node_feature_table_degree(edge_index, n_nodes)
-
-        data_degree = Data(
-            x=x_degree, 
-            edge_index=edge_index, 
-            y=y, 
-            masks=masks, 
-            density=round(density, 2),
-            assortativity=assortativity,
-            threshold = round(thr, 5),
-            dataset = dataset,
-            task = task,
-            time_window = time_window
-            )
+        # Verify alignment of customer_id if present
+        if "customer_id" in df.columns and "customer_id" in feature_df.columns:
+            if not np.array_equal(df["customer_id"].values, feature_df["customer_id"].values):
+                raise ValueError("Structure mismatch: 'customer_id' columns do not align between input DF and feature DF.")
         
-        data_features = Data(
-            x=x_features, 
-            edge_index=edge_index, 
-            y=y, 
-            masks=masks, 
-            density=round(density, 2),
-            assortativity=assortativity,
-            threshold = round(thr, 5),
-            dataset = dataset,
-            task = task,
-            time_window = time_window
-            )
-        
-        data_degree_objects.append(data_degree)
-        data_features_objects.append(data_features)
-        if verbose:
-            special_print(
-                {
-                    "target_density": target,
-                    "achieved": density,
-                    "threshold": thr,
-                },
-                name=f"density {target}% summary",
-            )
+        # Compute static features once
+        x_features = create_node_feature_table_data_user_churn(feature_df, masks)
 
-    return data_degree_objects, data_features_objects, similarity_matrix
+        data_degree_objects: list[Data] = []
+        data_features_objects: list[Data] = []
+        for target in target_densities:
+            thr = find_threshold_for_target_density(
+                similarity_matrix,
+                n_nodes,
+                target,
+                tolerance=density_tol,
+                max_iter=max_iter,
+            )
+            edge_index = build_edge_index(similarity_matrix, thr)
+            n_edges = edge_index.size(1) / 2
+            density = return_density(n_nodes, n_edges)
+            assortativity = compute_assortativity_categorical(edge_index, y) if y is not None else None
+
+            x_degree = create_node_feature_table_degree(edge_index, n_nodes)
+
+            data_degree = Data(
+                x=x_degree, 
+                edge_index=edge_index, 
+                y=y, 
+                masks=masks, 
+                density=round(density, 2),
+                assortativity=assortativity,
+                threshold = round(thr, 5),
+                dataset = dataset,
+                task = task,
+                time_window = time_window
+                )
+            
+            data_features = Data(
+                x=x_features, 
+                edge_index=edge_index, 
+                y=y, 
+                masks=masks, 
+                density=round(density, 2),
+                assortativity=assortativity,
+                threshold = round(thr, 5),
+                dataset = dataset,
+                task = task,
+                time_window = time_window
+                )
+            
+            data_degree_objects.append(data_degree)
+            data_features_objects.append(data_features)
+            if verbose:
+                special_print(
+                    {
+                        "target_density": target,
+                        "achieved": density,
+                        "threshold": thr,
+                    },
+                    name=f"density {target}% summary",
+                )
+
+        return data_degree_objects, data_features_objects, similarity_matrix

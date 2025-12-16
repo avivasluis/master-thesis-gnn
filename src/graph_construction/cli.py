@@ -52,7 +52,7 @@ def clean_author(raw: str) -> str:
     return m.group(1).strip() if m else raw
 
 def flatten_and_filter(x) -> np.ndarray:
-    """Light-weight version of the helper shown in the notebook.
+    """
     1. Flattens nested lists/arrays
     2. Drops empty strings and the standalone word 'Books'
     3. HTML-unescapes strings
@@ -86,6 +86,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--task", type=str, default='user-churn', help="Task of the dataset the graph is modeling")
     p.add_argument("--time_window", type=str, required=True, help="Time window from which the graph is being modeled")
     p.add_argument("--feature_df_path", type=str, required=True, help="Path to the parquet file for the datafram with the feature vector.")
+    p.add_argument("--return_only_sim_matrix", action="store_true", help="Return only similarity matrix")
     return p.parse_args()
 
 def main() -> None:
@@ -115,41 +116,54 @@ def main() -> None:
         task = args.task,
         time_window = args.time_window,
         feature_df = pd.read_parquet(args.feature_df_path)
+        return_only_sim_matrix = args.return_only_sim_matrix
     )
 
     if args.type == "categorical":
         build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
 
-    data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
-    #data_degree_objects = build_graph(**build_kwargs)
-
-    save_data_object(
-        similarity_matrix,
-        directory_name=args.column,
-        threshold=0.0,
-        density=0.0,
-        output_base_path=args.out,
-        similarity_matrix_flag = True
-    )
-
-    for data in data_degree_objects:
+    if args.return_only_sim_matrix:
+        similarity_matrix = build_graph(**build_kwargs)
         save_data_object(
-            data,
+            similarity_matrix,
             directory_name=args.column,
-            threshold=data.threshold,
-            density=data.density,
-            output_base_path = f'{args.out}',
+            threshold=0.0,
+            density=0.0,
+            output_base_path=args.out,
+            similarity_matrix_flag = True
         )
 
-    for data in data_features_objects:
+    else:
+        data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
+        #data_degree_objects = build_graph(**build_kwargs)
+
         save_data_object(
-            data,
+            similarity_matrix,
             directory_name=args.column,
-            threshold=data.threshold,
-            density=data.density,
-            output_base_path = f'{args.out}',
-            node_feature_degree = False,
+            threshold=0.0,
+            density=0.0,
+            output_base_path=args.out,
+            similarity_matrix_flag = True
         )
+
+        for data in data_degree_objects:
+            save_data_object(
+                data,
+                directory_name=args.column,
+                threshold=data.threshold,
+                density=data.density,
+                output_base_path = f'{args.out}',
+            )
+
+        for data in data_features_objects:
+            save_data_object(
+                data,
+                directory_name=args.column,
+                threshold=data.threshold,
+                density=data.density,
+                output_base_path = f'{args.out}',
+                node_feature_degree = False,
+            )
 
 if __name__ == "__main__":
     main()
