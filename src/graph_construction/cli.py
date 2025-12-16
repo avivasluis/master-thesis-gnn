@@ -115,7 +115,7 @@ def main() -> None:
         dataset = args.dataset,
         task = args.task,
         time_window = args.time_window,
-        feature_df = pd.read_parquet(args.feature_df_path)
+        feature_df = pd.read_parquet(args.feature_df_path),
         return_only_sim_matrix = args.return_only_sim_matrix
     )
 
