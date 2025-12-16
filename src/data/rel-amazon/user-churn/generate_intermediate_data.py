@@ -106,9 +106,9 @@ def main(args):
         print(f'\n PRODUCT_PRODUCT_ID -> \n {product_product_id.head().collect()}')
     save_data_parquet(product_product_id, 'product_id', args.output_path)
 
-    data_columns = ['title', 'brand', 'description', 'price', 'category']
+    #data_columns = ['title', 'brand', 'description', 'price', 'category']
     data_columns = ['brand', 'price', 'category']
-    data_columns = ['price']
+    #data_columns = ['price']
     expanded_train_foreign_keys = product_product_id
     foreign_key = 'product_id'
     dimention_table = args.product_lazy
