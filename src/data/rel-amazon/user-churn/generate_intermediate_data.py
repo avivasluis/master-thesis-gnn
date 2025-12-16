@@ -106,8 +106,8 @@ def main(args):
         print(f'\n PRODUCT_PRODUCT_ID -> \n {product_product_id.head().collect()}')
     save_data_parquet(product_product_id, 'product_id', args.output_path)
 
-    #data_columns = ['title', 'brand', 'description', 'price', 'category']
-    #data_columns = ['brand', 'price', 'category']
+    data_columns = ['title', 'brand', 'description', 'price', 'category']
+    data_columns = ['brand', 'price', 'category']
     data_columns = ['price']
     expanded_train_foreign_keys = product_product_id
     foreign_key = 'product_id'
@@ -120,23 +120,23 @@ def main(args):
         
 
     # Base join for review table where I collect the list of foreign keys in the fact table inside the time_window!
-    #review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
-    #if args.verbose:
-    #    print('*'*50)
-    #    print(f'\n review_review_id -> \n {review_review_id.head().collect()}')
-    #save_data_parquet(review_review_id, 'review_id', args.output_path)
+    review_review_id = collect_foreign_keys(train_lazy, args.review_lazy, 'customer_id', 'review_id', 'review_time', 'timestamp', args.time_window)
+    if args.verbose:
+        print('*'*50)
+        print(f'\n review_review_id -> \n {review_review_id.head().collect()}')
+    save_data_parquet(review_review_id, 'review_id', args.output_path)
 
     #data_columns = ['review_text', 'summary', 'rating', 'verified']
-    #data_columns = ['summary', 'rating', 'verified']
+    data_columns = ['rating']
         
-    #expanded_train_foreign_keys = review_review_id
-    #foreign_key = 'review_id'
-    #dimention_table = args.review_lazy
-    #name_dimention_table = 'review'
+    expanded_train_foreign_keys = review_review_id
+    foreign_key = 'review_id'
+    dimention_table = args.review_lazy
+    name_dimention_table = 'review'
 
-    #for data_column in data_columns:
-    #    expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table, args.verbose)
-    #    save_data_parquet(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
+    for data_column in data_columns:
+        expanded_df = expand_train_data_with_db_field(expanded_train_foreign_keys, foreign_key, dimention_table, data_column, name_dimention_table, args.verbose)
+        save_data_parquet(expanded_df, f'{name_dimention_table}_{data_column}', args.output_path)
 
 
 if __name__ == '__main__':
