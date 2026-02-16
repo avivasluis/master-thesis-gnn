@@ -102,6 +102,7 @@ def build_similarity_matrix(
     item_list_column: str,
     min_support: float = 0.03,
     min_lift: float = 1.2,
+    use_similarity_map: bool = True,
     verbose: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute similarity matrix from categorical list column.
@@ -117,6 +118,10 @@ def build_similarity_matrix(
         Column with the list of categorical items.
     min_support, min_lift
         Hyper-parameters for association-rule mining.
+    use_similarity_map
+        If True (default), use association-rule mining to find similar items
+        and expand similarity groups. If False, use direct set overlap where
+        items are only considered similar to themselves.
     verbose
         Whether to print progress information.
 
@@ -134,9 +139,14 @@ def build_similarity_matrix(
     if verbose:
         special_print(df.head(), "df.head()")
 
-    similarity_map = _build_similarity_map(transactions, min_support=min_support, min_lift=min_lift)
-    if verbose:
-        special_print(similarity_map, "similarity_map", use_pprint=True)
+    if use_similarity_map:
+        similarity_map = _build_similarity_map(transactions, min_support=min_support, min_lift=min_lift)
+        if verbose:
+            special_print(similarity_map, "similarity_map", use_pprint=True)
+    else:
+        similarity_map = {}  # Empty map = items only similar to themselves
+        if verbose:
+            special_print("Skipping similarity_map (direct overlap mode)", "Info")
 
     similarity_matrix = _create_similarity_matrix(transactions, similarity_map)
     if verbose:

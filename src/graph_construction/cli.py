@@ -85,6 +85,7 @@ def _parse_args() -> argparse.Namespace:
     # Categorical-specific hyper-parameters
     p.add_argument("--min_support", type=float, default=0.03, help="min_support for association rules")
     p.add_argument("--min_lift", type=float, default=1.2, help="min_lift for association rules")
+    p.add_argument("--no-similarity-map", action="store_true", help="For categorical: skip association rule mining, use direct overlap")
     p.add_argument("--no-preprocess", action="store_true", help="Disable automatic preprocessing of the list column")
     # Required for review_count pipeline
     p.add_argument("--time_window", type=str, required=True, help="Time window from which the data is sampled")
@@ -118,7 +119,11 @@ def main() -> None:
     )
 
     if args.type == "categorical":
-        build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
+        build_kwargs.update(
+            min_support=args.min_support,
+            min_lift=args.min_lift,
+            use_similarity_map=not args.no_similarity_map
+        )
     
     if args.type == "review_count":
         build_kwargs["feature_df"] = pd.read_parquet(args.feature_df_path)
