@@ -1,19 +1,25 @@
 #!/usr/bin/env python
-"""Light-weight CLI for building graphs with either pipeline.
+"""CLI for computing and saving similarity matrices from database columns.
+
+This tool computes a similarity matrix for a single column/feature and saves
+both the matrix and the label vector to disk. Graph construction from combined
+matrices happens downstream in notebooks.
 
 Example
 -------
 python -m graph_construction.cli \
-    --csv data/expanded_train.csv \
+    --csv data/expanded_train.parquet \
     --column product_category \
     --type categorical \
+    --label_column churn \
+    --time_window -6mo \
+    --feature_df_path data/feature_matrix.parquet \
     --out graphs/
 """
 from __future__ import annotations
 
 import argparse
 import importlib
-import os
 from pathlib import Path
 import sys
 
@@ -29,7 +35,7 @@ package_root = this_file.parent.parent  # .../src
 if package_root.as_posix() not in sys.path:
     sys.path.insert(0, package_root.as_posix())
 
-from graph_construction.common import save_data_object, special_print
+from graph_construction.common import save_similarity_matrix, special_print
 
 PIPELINES = {
     "categorical": "graph_construction.categorical",
@@ -70,31 +76,26 @@ def flatten_and_filter(x) -> np.ndarray:
     return np.array(clean, dtype=object)
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Graph constructor")
-    p.add_argument("--csv", required=True, help="Path to expanded training CSV")
+    p = argparse.ArgumentParser(description="Similarity matrix generator")
+    p.add_argument("--csv", required=True, help="Path to expanded training CSV/Parquet")
     p.add_argument("--column", required=True, help="Name of the list column to use")
     p.add_argument("--type", choices=PIPELINES.keys(), required=True, help="Pipeline type")
-    p.add_argument("--label_column", default="churn", help="Target/label column name (optional)")
-    p.add_argument("--out", default="./graphs", help="Output directory for .pt files")
-    p.add_argument("--densities", default="15,10,7,4", help="Comma-separated list of target densities (%)")
+    p.add_argument("--label_column", default="churn", help="Target/label column name")
+    p.add_argument("--out", default="./graphs", help="Output directory for similarity matrices")
     # Categorical-specific hyper-parameters
     p.add_argument("--min_support", type=float, default=0.03, help="min_support for association rules")
     p.add_argument("--min_lift", type=float, default=1.2, help="min_lift for association rules")
-    p.add_argument("--no-preprocess", action="store_true", help="Disable automatic preprocessing of the list column before graph construction")
-    # Experiment logging parameters
-    p.add_argument("--dataset", type=str, default='rel-amazon', help="Origin dataset of the graph")
-    p.add_argument("--task", type=str, default='user-churn', help="Task of the dataset the graph is modeling")
-    p.add_argument("--time_window", type=str, required=True, help="Time window from which the graph is being modeled")
-    p.add_argument("--feature_df_path", type=str, required=True, help="Path to the parquet file for the datafram with the feature vector.")
-    p.add_argument("--return_only_sim_matrix", action="store_true", help="Return only similarity matrix")
+    p.add_argument("--no-preprocess", action="store_true", help="Disable automatic preprocessing of the list column")
+    # Required for review_count pipeline
+    p.add_argument("--time_window", type=str, required=True, help="Time window from which the data is sampled")
+    p.add_argument("--feature_df_path", type=str, required=True, help="Path to the parquet file with feature vectors")
     return p.parse_args()
 
 def main() -> None:
     args = _parse_args()
-    target_densities = [float(x) for x in args.densities.split(",")]
 
     module = importlib.import_module(PIPELINES[args.type])
-    build_graph = getattr(module, "build_graph")
+    build_similarity_matrix = getattr(module, "build_similarity_matrix")
 
     path = Path(args.csv)
     df = pd.read_parquet(path) if path.suffix.lower() in {".parquet", ".pq"} else pd.read_csv(path)
@@ -107,63 +108,35 @@ def main() -> None:
         special_print(f"Applying preprocessing for column '{args.column}'", "Info")
         df[args.column] = df[args.column].apply(PREPROCESSORS[args.column])
 
+    # --------------------------------------------------
+    # Build kwargs based on pipeline type
+    # --------------------------------------------------
     build_kwargs = dict(
         df=df,
         label_column=args.label_column,
         item_list_column=args.column,
-        target_densities=target_densities,
-        dataset = args.dataset,
-        task = args.task,
-        time_window = args.time_window,
-        feature_df = pd.read_parquet(args.feature_df_path),
-        return_only_sim_matrix = args.return_only_sim_matrix
     )
 
     if args.type == "categorical":
         build_kwargs.update(min_support=args.min_support, min_lift=args.min_lift)
+    
+    if args.type == "review_count":
+        build_kwargs["feature_df"] = pd.read_parquet(args.feature_df_path)
 
-    if args.return_only_sim_matrix:
-        similarity_matrix = build_graph(**build_kwargs)
-        save_data_object(
-            similarity_matrix,
-            directory_name=args.column,
-            threshold=0.0,
-            density=0.0,
-            output_base_path=args.out,
-            similarity_matrix_flag = True
-        )
+    # --------------------------------------------------
+    # Compute similarity matrix and labels
+    # --------------------------------------------------
+    similarity_matrix, y = build_similarity_matrix(**build_kwargs)
 
-    else:
-        data_degree_objects, data_features_objects, similarity_matrix = build_graph(**build_kwargs)
-        #data_degree_objects = build_graph(**build_kwargs)
-
-        save_data_object(
-            similarity_matrix,
-            directory_name=args.column,
-            threshold=0.0,
-            density=0.0,
-            output_base_path=args.out,
-            similarity_matrix_flag = True
-        )
-
-        for data in data_degree_objects:
-            save_data_object(
-                data,
-                directory_name=args.column,
-                threshold=data.threshold,
-                density=data.density,
-                output_base_path = f'{args.out}',
-            )
-
-        for data in data_features_objects:
-            save_data_object(
-                data,
-                directory_name=args.column,
-                threshold=data.threshold,
-                density=data.density,
-                output_base_path = f'{args.out}',
-                node_feature_degree = False,
-            )
+    # --------------------------------------------------
+    # Save outputs
+    # --------------------------------------------------
+    save_similarity_matrix(
+        similarity_matrix=similarity_matrix,
+        labels=y,
+        output_dir=args.out,
+        column_name=args.column,
+    )
 
 if __name__ == "__main__":
     main()

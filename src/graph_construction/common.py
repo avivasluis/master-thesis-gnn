@@ -5,6 +5,10 @@ from __future__ import annotations
 The functions here are intentionally dataset-agnostic.  They operate on generic
 `pd.DataFrame` inputs and simple Python / NumPy / torch objects so that any
 notebook-style experiment can import them without modification.
+
+This module is organized into two sections:
+1. Similarity matrix helpers - used by the pipeline modules (categorical, numeric, review_count)
+2. Graph construction helpers - used by notebooks for building graphs from similarity matrices
 """
 
 import os
@@ -25,8 +29,11 @@ from sklearn.preprocessing import StandardScaler
 import math
 
 __all__ = [
+    # Similarity matrix helpers
     "special_print",
     "parse_string_list",
+    "save_similarity_matrix",
+    # Graph construction helpers (for notebooks)
     "return_density",
     'compute_assortativity_categorical',
     "build_edge_index",
@@ -39,9 +46,9 @@ __all__ = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# misc helpers
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SECTION 1: Similarity matrix helpers
+# ===========================================================================
 
 def special_print(var, name: str | None = None, *, use_pprint: bool = False) -> None:
     """Pretty print a variable with clear separators – convenient for notebooks.
@@ -68,10 +75,6 @@ def special_print(var, name: str | None = None, *, use_pprint: bool = False) -> 
     print()
 
 
-# ---------------------------------------------------------------------------
-# string ⇄ list conversion – required when CSV is stored with list-like strings
-# ---------------------------------------------------------------------------
-
 def parse_string_list(s: str | list[str] | np.ndarray | None) -> list[str]:
     """Parse a string that represents a list of substrings.
 
@@ -92,9 +95,49 @@ def parse_string_list(s: str | list[str] | np.ndarray | None) -> list[str]:
         return s.split()
 
 
-# ---------------------------------------------------------------------------
-# density / edge helpers
-# ---------------------------------------------------------------------------
+def save_similarity_matrix(
+    similarity_matrix: np.ndarray,
+    labels: np.ndarray | None,
+    output_dir: str | os.PathLike,
+    column_name: str,
+) -> tuple[str, str | None]:
+    """Save similarity matrix and labels to disk.
+
+    Parameters
+    ----------
+    similarity_matrix
+        The N x N similarity matrix to save.
+    labels
+        The label vector of shape [N], or None if no labels.
+    output_dir
+        Base output directory.
+    column_name
+        Name of the column (used as subdirectory name).
+
+    Returns
+    -------
+    tuple[str, str | None]
+        Paths to saved similarity_matrix.npy and labels.npy (or None if no labels).
+    """
+    out_path = os.path.join(output_dir, column_name)
+    os.makedirs(out_path, exist_ok=True)
+
+    sim_path = os.path.join(out_path, "similarity_matrix.npy")
+    np.save(sim_path, similarity_matrix)
+    print(f"Saved: {sim_path}")
+
+    labels_path = None
+    if labels is not None:
+        labels_path = os.path.join(out_path, "labels.npy")
+        np.save(labels_path, labels)
+        print(f"Saved: {labels_path}")
+
+    return sim_path, labels_path
+
+
+# ===========================================================================
+# SECTION 2: Graph construction helpers (for notebooks)
+# ===========================================================================
 
 def return_density(n_nodes: int, n_edges: int | float) -> float:
     """Return (undirected) graph density in percent (0-100)."""
@@ -280,7 +323,7 @@ def find_threshold_for_target_density(
 
 
 # ---------------------------------------------------------------------------
-# persist helper
+# persist helper (legacy – for backward compatibility with notebooks)
 # ---------------------------------------------------------------------------
 
 def save_data_object(
@@ -292,7 +335,11 @@ def save_data_object(
     similarity_matrix_flag: bool = False,
     node_feature_degree: bool = True
 ) -> str:
-    """Save a :class:`torch_geometric.data.Data` and return the filepath."""
+    """Save a :class:`torch_geometric.data.Data` and return the filepath.
+    
+    Note: This function is kept for backward compatibility with notebooks.
+    For new code, consider using save_similarity_matrix() for matrices.
+    """
     if similarity_matrix_flag:
         output_dir = os.path.join(output_base_path, directory_name)
         os.makedirs(output_dir, exist_ok=True)
