@@ -104,7 +104,7 @@ def main(args):
     #if args.verbose:
     #    print('*'*50)
     #    print(f'\n PRODUCT_PRODUCT_ID -> \n {product_product_id.head().collect()}')
-    #save_data_parquet(product_product_id, 'product_id', args.output_path)
+    save_data_parquet(product_product_id, 'product_id', args.output_path)
 
     #data_columns = ['title', 'brand', 'description', 'price', 'category']
     data_columns = ['brand', 'price', 'category']
