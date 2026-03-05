@@ -40,7 +40,8 @@ from graph_construction.common import save_similarity_matrix, special_print
 PIPELINES = {
     "categorical": "graph_construction.categorical",
     "numeric": "graph_construction.numeric",
-    "review_count": "graph_construction.review_count"
+    "review_count": "graph_construction.review_count",
+    "text": "graph_construction.text",
 }
 
 PREPROCESSORS = {
@@ -90,6 +91,10 @@ def _parse_args() -> argparse.Namespace:
     # Required for review_count pipeline
     p.add_argument("--time_window", type=str, required=True, help="Time window from which the data is sampled")
     p.add_argument("--feature_df_path", type=str, required=True, help="Path to the parquet file with feature vectors")
+    # Text-specific hyper-parameters
+    p.add_argument("--model_name", type=str, default="sentence-transformers/average_word_embeddings_glove.6B.300d",
+                   help="SentenceTransformer model name for text embeddings")
+    p.add_argument("--device", type=str, default=None, help="Device for text model inference (cuda/cpu/auto)")
     return p.parse_args()
 
 def main() -> None:
@@ -127,6 +132,12 @@ def main() -> None:
     
     if args.type == "review_count":
         build_kwargs["feature_df"] = pd.read_parquet(args.feature_df_path)
+
+    if args.type == "text":
+        build_kwargs.update(
+            model_name=args.model_name,
+            device=args.device,
+        )
 
     # --------------------------------------------------
     # Compute similarity matrix and labels
