@@ -93,7 +93,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--time_window", type=str, required=True, help="Time window from which the data is sampled")
     p.add_argument("--feature_df_path", type=str, required=True, help="Path to the parquet file with feature vectors")
     # Text-specific hyper-parameters
-    p.add_argument("--model_name", type=str, default="sentence-transformers/average_word_embeddings_glove.6B.300d",
+    p.add_argument("--model_name", type=str, default="sentence-transformers/all-MiniLM-L6-v2",
                    help="SentenceTransformer model name for text embeddings")
     p.add_argument("--device", type=str, default=None, help="Device for text model inference (cuda/cpu/auto)")
     # Date-specific hyper-parameters
