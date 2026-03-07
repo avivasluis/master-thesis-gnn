@@ -42,6 +42,7 @@ PIPELINES = {
     "numeric": "graph_construction.numeric",
     "review_count": "graph_construction.review_count",
     "text": "graph_construction.text",
+    "date": "graph_construction.date",
 }
 
 PREPROCESSORS = {
@@ -95,6 +96,11 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--model_name", type=str, default="sentence-transformers/average_word_embeddings_glove.6B.300d",
                    help="SentenceTransformer model name for text embeddings")
     p.add_argument("--device", type=str, default=None, help="Device for text model inference (cuda/cpu/auto)")
+    # Date-specific hyper-parameters
+    p.add_argument("--reference_date_column", type=str, default="timestamp",
+                   help="Column with reference date for computing days_since_reference (for date pipeline)")
+    p.add_argument("--id_column", type=str, default=None,
+                   help="Optional column to detect empty records (for date pipeline)")
     return p.parse_args()
 
 def main() -> None:
@@ -137,6 +143,12 @@ def main() -> None:
         build_kwargs.update(
             model_name=args.model_name,
             device=args.device,
+        )
+
+    if args.type == "date":
+        build_kwargs.update(
+            reference_date_column=args.reference_date_column,
+            id_column=args.id_column,
         )
 
     # --------------------------------------------------
