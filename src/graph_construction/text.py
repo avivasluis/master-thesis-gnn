@@ -19,7 +19,8 @@ from .common import (
 
 __all__ = ["build_similarity_matrix"]
 
-DEFAULT_MODEL = "sentence-transformers/average_word_embeddings_glove.6B.300d"
+#DEFAULT_MODEL = "sentence-transformers/average_word_embeddings_glove.6B.300d"
+DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 # ---------------------------------------------------------------------------
