@@ -1,7 +1,33 @@
 import copy
 import torch
+import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, roc_auc_score
 import os
+
+
+def find_optimal_threshold(y_true, y_probs):
+    """
+    Find optimal classification threshold on validation data.
+    
+    Args:
+        y_true: Ground truth binary labels
+        y_probs: Predicted probabilities
+
+    Returns:
+        best_threshold: Optimal threshold value
+    """
+    thresholds = np.linspace(0.01, 0.99, 99)
+    best_threshold = 0.5
+    best_score = 0
+    
+    for thresh in thresholds:
+        preds = (y_probs >= thresh).astype(int)
+        score = f1_score(y_true, preds, zero_division=0)
+        if score > best_score:
+            best_score = score
+            best_threshold = thresh
+    
+    return best_threshold
 
 def train_loop(model, optimizer, criterion, data, masks):
     model.train()
@@ -12,12 +38,12 @@ def train_loop(model, optimizer, criterion, data, masks):
     optimizer.step()
     return loss.item()
 
-def test(mask, model, data):
+def test(mask, model, data, threshold=0.5):
     model.eval()
     with torch.no_grad():
         logits = model(data.x, data.edge_index).view(-1)
         probs = torch.sigmoid(logits)
-        pred = (probs > 0.5).float()
+        pred = (probs > threshold).float()
 
         m = mask.bool()
         acc = (pred[m] == data.y[m]).sum().item() / m.sum().item()
@@ -31,7 +57,7 @@ def test(mask, model, data):
             auroc = roc_auc_score(true_np, probs_np)
         except ValueError:
             auroc = float('nan')
-    return acc, f1, auroc, true_np, pred_np
+    return acc, f1, auroc, true_np, pred_np, probs_np
 
 def generate_model_report(true_labels, pred_labels, name = None):
     report = classification_report(true_labels, pred_labels)
@@ -84,7 +110,7 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
 
     for epoch in range(1, n_epochs + 1):
         train_loss = train_loop(model, optimizer, criterion, data, masks)
-        val_acc, val_f1, val_auc, true_labels, pred_labels = test(masks['val_mask'], model, data)
+        val_acc, val_f1, val_auc, true_labels, pred_labels, _ = test(masks['val_mask'], model, data)
 
         custom_print("*" * 92)
         custom_print(f'Epoch: {epoch:03d} | Loss: {train_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}, Val AUROC: {val_auc:.4f}')
@@ -105,20 +131,26 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
 
     model.load_state_dict(best_model_state)
 
-    train_acc, train_f1, train_auc, train_true_labels, train_pred_labels = test(masks['train_mask'], model, data)
+    # Find optimal threshold using validation set
+    _, _, _, val_true_labels, _, val_probs = test(masks['val_mask'], model, data, threshold=0.5)
+    optimal_threshold = find_optimal_threshold(val_true_labels, val_probs)
+    custom_print(f'\nOptimal threshold (based on validation F1): {optimal_threshold:.4f}')
+
+    # Evaluate all partitions using optimal threshold
+    train_acc, train_f1, train_auc, train_true_labels, train_pred_labels, _ = test(masks['train_mask'], model, data, threshold=optimal_threshold)
     custom_print('\nTraining Partition Results: ')
     custom_print(f'train_f1 = {train_f1:.4f} \n train_auc = {train_auc:.4f}\n')
     train_report = generate_model_report(train_true_labels, train_pred_labels)
     custom_print(train_report)
 
-    val_acc, val_f1, val_auc, val_true_labels, val_pred_labels = test(masks['val_mask'], model, data)
+    val_acc, val_f1, val_auc, val_true_labels, val_pred_labels, _ = test(masks['val_mask'], model, data, threshold=optimal_threshold)
     custom_print('\nValidation Partition Results: ')
     custom_print(f'val_f1 = {val_f1:.4f} \n val_auc = {val_auc:.4f}\n')
     val_report = generate_model_report(val_true_labels, val_pred_labels)
     custom_print(val_report)
 
     custom_print('\nTest Partition Results: ')
-    test_acc, test_f1, test_auc, test_true_labels, test_pred_labels = test(masks['test_mask'], model, data)
+    test_acc, test_f1, test_auc, test_true_labels, test_pred_labels, _ = test(masks['test_mask'], model, data, threshold=optimal_threshold)
     custom_print(f'test_f1 = {test_f1:.4f} \n test_auc = {test_auc:.4f}\n')
     test_report = generate_model_report(test_true_labels, test_pred_labels)
     custom_print(test_report)
@@ -126,4 +158,4 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     if log_f:
         log_f.close()
 
-    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc)
+    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold)
