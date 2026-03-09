@@ -17,7 +17,7 @@ from collections import defaultdict
 from html import unescape
 from itertools import combinations
 from pprint import pprint
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -414,6 +414,7 @@ def generate_alpha_configs(
     n_random: int = 50,
     sparsity_alpha: float = 1.0,
     start_random_count: int = 0,
+    use_random: bool = True
 ) -> list[dict]:
     """Generate alpha weight configurations for combining similarity matrices.
     
@@ -445,11 +446,35 @@ def generate_alpha_configs(
     n = len(names)
     
     # Random mixtures using Dirichlet distribution
-    random_weights = np.random.dirichlet([sparsity_alpha] * n, n_random)
-    
-    for i, weights in enumerate(random_weights):
-        config = {name: float(w) for name, w in zip(names, weights)}
-        config['type'] = f'random_{i + start_random_count}'
+    if use_random:
+        random_weights = np.random.dirichlet([sparsity_alpha] * n, n_random)
+        
+        for i, weights in enumerate(random_weights):
+            config = {name: float(w) for name, w in zip[tuple[str, Any]](names, weights)}
+            config['type'] = f'random_{i + start_random_count}'
+            configs.append(config)
+    else:
+        # 1. Pure Strategies (Corners)
+        # Useful to establish baseline performance of each feature
+        for name in names:
+            config = {n: 0.0 for n in names}
+            config[name] = 1.0
+            config['type'] = f'pure_{name}'
+            configs.append(config)
+            
+        # 2. Pairwise Mixtures (Edges)
+        # Useful to see if two features complement each other
+        for name1, name2 in combinations(names, 2):
+            config = {n: 0.0 for n in names}
+            config[name1] = 0.5
+            config[name2] = 0.5
+            config['type'] = f'pair_{name1}_{name2}'
+            configs.append(config)
+            
+        # 3. Balanced Mixture (Center)
+        n = len(names)
+        config = {name: 1.0/n for name in names}
+        config['type'] = 'balanced'
         configs.append(config)
         
     return configs
