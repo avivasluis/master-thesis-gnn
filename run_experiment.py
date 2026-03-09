@@ -45,9 +45,10 @@ def main(args):
             batch_size=args.batch_size, num_neighbors=args.num_neighbors, num_workers=args.num_workers,
             use_hierarchical_sampling=args.use_hierarchical_sampling
         )
+        optimal_threshold = None
     else:
         # Full-batch training (original)
-        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate(
+        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold = train_and_evaluate(
             args.model, args.data,
             lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
             n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file
@@ -89,7 +90,8 @@ def main(args):
         'val_auc': val_auc,
         'test_acc': test_acc,
         'test_f1': test_f1,
-        'test_auc': test_auc
+        'test_auc': test_auc,
+        'optimal_classifying_threshold': optimal_threshold
     }
     
     if log_file:
