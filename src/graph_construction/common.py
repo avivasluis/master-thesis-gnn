@@ -450,7 +450,7 @@ def generate_alpha_configs(
         random_weights = np.random.dirichlet([sparsity_alpha] * n, n_random)
         
         for i, weights in enumerate(random_weights):
-            config = {name: float(w) for name, w in zip[tuple[str, Any]](names, weights)}
+            config = {name: float(w) for name, w in zip(names, weights)}
             config['type'] = f'random_{i + start_random_count}'
             configs.append(config)
     else:
