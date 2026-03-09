@@ -15,8 +15,9 @@ import os
 import shlex
 from collections import defaultdict
 from html import unescape
+from itertools import combinations
 from pprint import pprint
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -33,6 +34,7 @@ __all__ = [
     "special_print",
     "parse_string_list",
     "save_similarity_matrix",
+    "normalize_matrix",
     # Graph construction helpers (for notebooks)
     "return_density",
     'compute_assortativity_categorical',
@@ -43,6 +45,8 @@ __all__ = [
     "create_node_feature_table_data_user_churn",
     "save_data_object",
     "make_stratified_masks",
+    # Experiment configuration helpers
+    "generate_alpha_configs",
 ]
 
 
@@ -133,6 +137,16 @@ def save_similarity_matrix(
         print(f"Saved: {labels_path}")
 
     return sim_path, labels_path
+
+
+def normalize_matrix(M: np.ndarray) -> np.ndarray:
+    """Normalize a matrix to [0, 1] range using min-max scaling.
+    
+    Handles NaN values gracefully using nanmin/nanmax.
+    Returns the original matrix unchanged if min == max.
+    """
+    M_min, M_max = np.nanmin(M), np.nanmax(M)
+    return (M - M_min) / (M_max - M_min) if M_max > M_min else M
 
 
 # ===========================================================================
@@ -288,20 +302,41 @@ def find_threshold_for_target_density(
     n_nodes: int,
     target_density: float,
     *,
-    tolerance: float = 1.0,
+    tolerance: float = 0.1,
     max_iter: int = 100,
+    verbose: bool = True,
 ) -> float:
     """Binary-search a similarity threshold so that the resulting graph density
     is **as close as possible** to `target_density` (percentage).
+    
+    Parameters
+    ----------
+    similarity_matrix
+        NxN similarity matrix.
+    n_nodes
+        Number of nodes in the graph.
+    target_density
+        Target density as a percentage (0-100).
+    tolerance
+        Stop early if density difference is within this tolerance.
+    max_iter
+        Maximum number of binary search iterations.
+    verbose
+        If True, print progress messages during search.
     """
     low, high = 0.0, 1.0
     best_threshold = 0.0
     min_diff = float("inf")
 
+    if verbose:
+        print(f"Searching for threshold to achieve target density: {target_density:.4f}")
+
     for _ in range(max_iter):
         mid = (low + high) / 2
         if high - low < 1e-6:
-            break  # search space exhausted
+            if verbose:
+                print("Search space is too small, stopping.")
+            break
 
         edge_index = build_edge_index(similarity_matrix, mid)
         n_edges = edge_index.size(1) / 2  # undirected – each edge counted twice
@@ -311,13 +346,21 @@ def find_threshold_for_target_density(
         if diff < min_diff:
             min_diff = diff
             best_threshold = mid
-        if diff <= tolerance:
+        if min_diff <= tolerance:
+            if verbose:
+                print(f"Found threshold with density difference within tolerance ({tolerance}).")
             break
 
         if density > target_density:
             low = mid  # need fewer edges → higher threshold
         else:
             high = mid
+
+    if verbose:
+        final_edge_index = build_edge_index(similarity_matrix, best_threshold)
+        final_n_edges = final_edge_index.size(1) / 2
+        final_density = return_density(n_nodes, final_n_edges)
+        print(f"Search finished. Best threshold: {best_threshold:.4f} with density {final_density:.4f}")
 
     return best_threshold
 
@@ -360,3 +403,53 @@ def save_data_object(
         torch.save(data, filepath)
     print(f"Saved: {os.path.relpath(filepath, output_base_path)}")
     return filepath
+
+
+# ===========================================================================
+# SECTION 3: Experiment configuration helpers
+# ===========================================================================
+
+def generate_alpha_configs(
+    names: Sequence[str],
+    n_random: int = 50,
+    sparsity_alpha: float = 1.0,
+    start_random_count: int = 0,
+) -> list[dict]:
+    """Generate alpha weight configurations for combining similarity matrices.
+    
+    Creates a list of alpha dictionaries {name: weight} covering random mixtures
+    sampled from a Dirichlet distribution.
+    
+    Parameters
+    ----------
+    names
+        List of feature/matrix names to generate weights for.
+    n_random
+        Number of random configurations to generate.
+    sparsity_alpha
+        Dirichlet concentration parameter:
+        - < 1.0 pushes weights towards 0 (sparse mixtures)
+        - > 1.0 pushes weights towards center (dense/uniform mixtures)
+        - = 1.0 uniform sampling over the simplex
+    start_random_count
+        Starting index for naming random configurations.
+        
+    Returns
+    -------
+    list[dict]
+        List of configuration dictionaries. Each dict has keys for each name
+        (with float weights summing to 1.0) plus a 'type' key describing
+        the configuration.
+    """
+    configs = []
+    n = len(names)
+    
+    # Random mixtures using Dirichlet distribution
+    random_weights = np.random.dirichlet([sparsity_alpha] * n, n_random)
+    
+    for i, weights in enumerate(random_weights):
+        config = {name: float(w) for name, w in zip(names, weights)}
+        config['type'] = f'random_{i + start_random_count}'
+        configs.append(config)
+        
+    return configs
