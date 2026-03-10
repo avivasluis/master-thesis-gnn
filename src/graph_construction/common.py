@@ -45,6 +45,7 @@ __all__ = [
     "create_node_feature_table_data_user_churn",
     "save_data_object",
     "make_stratified_masks",
+    "make_temporal_masks",
     # Experiment configuration helpers
     "generate_alpha_configs",
 ]
@@ -238,6 +239,59 @@ def make_stratified_masks(
         "train_mask": mask(idx_train),
         "val_mask": mask(idx_val),
         "test_mask": mask(idx_test),
+    }
+
+
+def make_temporal_masks(
+    df: pd.DataFrame,
+    *,
+    timestamp_column: str = "timestamp",
+    train_ratio: float = 0.8,
+    val_ratio: float = 0.1,
+) -> Mapping[str, torch.Tensor]:
+    """Return boolean masks with temporal 80/10/10 splits based on timestamps.
+
+    Parameters
+    ----------
+    df
+        DataFrame with one row per node. Must contain a timestamp column.
+    timestamp_column
+        Name of the timestamp column used to order nodes chronologically.
+    train_ratio, val_ratio
+        Fractions that sum to ≤1. Test ratio is inferred.
+    """
+    if timestamp_column not in df.columns:
+        raise ValueError(f"Timestamp column '{timestamp_column}' not found in DataFrame.")
+
+    n = len(df)
+    if n == 0:
+        raise ValueError("Cannot create temporal masks for empty DataFrame.")
+
+    if train_ratio < 0 or val_ratio < 0 or train_ratio + val_ratio > 1:
+        raise ValueError("train_ratio and val_ratio must be non-negative and sum to ≤ 1.")
+
+    # Ensure we work on a copy to avoid modifying caller's DataFrame
+    ts = pd.to_datetime(df[timestamp_column])
+
+    # argsort gives indices that would sort timestamps in ascending order
+    sorted_idx = np.argsort(ts.values)
+
+    train_end = int(n * train_ratio)
+    val_end = train_end + int(n * val_ratio)
+
+    idx_train = sorted_idx[:train_end]
+    idx_val = sorted_idx[train_end:val_end]
+    idx_test = sorted_idx[val_end:]
+
+    all_idx = np.arange(n)
+
+    def to_mask(indices: np.ndarray) -> torch.Tensor:
+        return torch.as_tensor(np.isin(all_idx, indices), dtype=torch.bool)
+
+    return {
+        "train_mask": to_mask(idx_train),
+        "val_mask": to_mask(idx_val),
+        "test_mask": to_mask(idx_test),
     }
 
 
