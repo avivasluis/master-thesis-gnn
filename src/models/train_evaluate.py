@@ -1,6 +1,7 @@
 import copy
 import torch
 import numpy as np
+import time
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, roc_auc_score
 import os
 
@@ -32,11 +33,19 @@ def find_optimal_threshold(y_true, y_probs):
 def train_loop(model, optimizer, criterion, data, masks):
     model.train()
     optimizer.zero_grad()
+    if data.x.is_cuda:
+        torch.cuda.synchronize()
+    step_start = time.perf_counter()
+
     logits = model(data.x, data.edge_index).view(-1)
     loss = criterion(logits[masks['train_mask']], data.y[masks['train_mask']].float())
     loss.backward()
     optimizer.step()
-    return loss.item()
+
+    if data.x.is_cuda:
+        torch.cuda.synchronize()
+    step_time_sec = time.perf_counter() - step_start
+    return loss.item(), step_time_sec
 
 def test(mask, model, data, threshold=0.5):
     model.eval()
@@ -94,6 +103,10 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     masks = {k: torch.as_tensor(v).to(device) for k, v in masks.items()}
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
+    if device.type == 'cuda':
+        torch.cuda.reset_peak_memory_stats(device)
+        torch.cuda.synchronize()
+
     if pos_weight is not None:
         pos_weight = torch.tensor([pos_weight], device=device)
 
@@ -108,8 +121,11 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     custom_print(f'{data}')
     custom_print(f'\nDevice = {device}\n')
 
+    total_train_start = time.perf_counter()
+    epoch_train_step_times_sec = []
     for epoch in range(1, n_epochs + 1):
-        train_loss = train_loop(model, optimizer, criterion, data, masks)
+        train_loss, train_step_time_sec = train_loop(model, optimizer, criterion, data, masks)
+        epoch_train_step_times_sec.append(train_step_time_sec)
         val_acc, val_f1, val_auc, true_labels, pred_labels, _ = test(masks['val_mask'], model, data)
 
         custom_print("*" * 92)
@@ -128,6 +144,9 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
             custom_print(f"Early stopping triggered after {epoch} epochs!")
             custom_print("*" * 92)
             break
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
+    total_train_time_sec = time.perf_counter() - total_train_start
 
     model.load_state_dict(best_model_state)
 
@@ -150,7 +169,13 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     custom_print(val_report)
 
     custom_print('\nTest Partition Results: ')
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
+    inference_start = time.perf_counter()
     test_acc, test_f1, test_auc, test_true_labels, test_pred_labels, _ = test(masks['test_mask'], model, data, threshold=optimal_threshold)
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
+    inference_time_sec = time.perf_counter() - inference_start
     custom_print(f'test_f1 = {test_f1:.4f} \n test_auc = {test_auc:.4f}\n')
     test_report = generate_model_report(test_true_labels, test_pred_labels)
     custom_print(test_report)
@@ -158,4 +183,19 @@ def train_and_evaluate(model, data, lr=0.001, weight_decay=0, pos_weight=None, n
     if log_f:
         log_f.close()
 
-    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold)
+    peak_gpu_memory_mb = None
+    if device.type == 'cuda':
+        peak_gpu_memory_mb = torch.cuda.max_memory_allocated(device) / (1024 * 1024)
+
+    avg_train_time_per_epoch_sec = float('nan')
+    if epoch_train_step_times_sec:
+        avg_train_time_per_epoch_sec = float(sum(epoch_train_step_times_sec) / len(epoch_train_step_times_sec))
+
+    hardware_metrics = {
+        'avg_train_time_per_epoch_sec': avg_train_time_per_epoch_sec,
+        'total_train_time_to_convergence_sec': total_train_time_sec,
+        'inference_time_sec': inference_time_sec,
+        'peak_gpu_memory_allocated_mb': peak_gpu_memory_mb,
+    }
+
+    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold, hardware_metrics)

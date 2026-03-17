@@ -2,6 +2,7 @@ import argparse
 import torch
 import numpy as np
 import random
+import pickle
 from src.models.gcn import GCN 
 from src.models.mlp import MLP 
 from src.models.gin import GIN
@@ -11,6 +12,10 @@ from src.models.train_evaluate_neighbor_loader import train_and_evaluate as trai
 from src.graph_analysis.metrics import compute_density, compute_assortativity_categorical, compute_homophily_ratio
 import os
 import json
+
+def get_graph_object_size_mb(pyg_data_obj) -> float:
+    """Approximate PyG Data object size in RAM (MB) before GPU transfer."""
+    return len(pickle.dumps(pyg_data_obj, protocol=pickle.HIGHEST_PROTOCOL)) / (1024 * 1024)
 
 def set_seed(seed: int):
     """Set seed for reproducibility."""
@@ -38,7 +43,7 @@ def main(args):
 
     if args.use_neighbor_loader:
         # Mini-batch training with NeighborLoader
-        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc = train_and_evaluate_neighbor_loader(
+        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, hardware_metrics = train_and_evaluate_neighbor_loader(
             args.model, args.data,
             lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
             n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file,
@@ -48,7 +53,7 @@ def main(args):
         optimal_threshold = None
     else:
         # Full-batch training (original)
-        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold = train_and_evaluate(
+        train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold, hardware_metrics = train_and_evaluate(
             args.model, args.data,
             lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
             n_epochs=args.n_epochs, early_stop_patience=args.early_stop_patience, log_file=log_file
@@ -91,7 +96,13 @@ def main(args):
         'test_acc': test_acc,
         'test_f1': test_f1,
         'test_auc': test_auc,
-        'optimal_classifying_threshold': optimal_threshold
+        'optimal_classifying_threshold': optimal_threshold,
+        # Hardware metrics
+        'avg_train_time_per_epoch_sec': hardware_metrics.get('avg_train_time_per_epoch_sec'),
+        'total_train_time_to_convergence_sec': hardware_metrics.get('total_train_time_to_convergence_sec'),
+        'inference_time_sec': hardware_metrics.get('inference_time_sec'),
+        'peak_gpu_memory_allocated_mb': hardware_metrics.get('peak_gpu_memory_allocated_mb'),
+        'graph_object_size_mb': getattr(args, 'graph_object_size_mb', None),
     }
     
     if log_file:
@@ -150,6 +161,7 @@ if __name__ == '__main__':
     processed_graph_path = f'{args.graph}'
 
     args.data = torch.load(processed_graph_path, weights_only=False)
+    args.graph_object_size_mb = get_graph_object_size_mb(args.data)
 
     if args.GNN_model == 'MLP':
         args.model = MLP(in_channels=args.data.x.shape[1], 

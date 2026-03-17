@@ -1,6 +1,7 @@
 import copy
 import torch
 import numpy as np
+import time
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, roc_auc_score
 import os
 from torch_geometric.loader import NeighborLoader
@@ -32,10 +33,15 @@ def train_epoch(model, optimizer, criterion, train_loader, device, use_hierarchi
     model.train()
     total_loss = 0
     total_examples = 0
+    total_train_step_time_sec = 0.0
     
     for batch in train_loader:
         optimizer.zero_grad()
         batch = batch.to(device)
+        
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        step_start = time.perf_counter()
         
         # Forward pass with optional hierarchical sampling
         if use_hierarchical_sampling and hasattr(batch, 'num_sampled_nodes') and hasattr(batch, 'num_sampled_edges'):
@@ -56,10 +62,14 @@ def train_epoch(model, optimizer, criterion, train_loader, device, use_hierarchi
         loss.backward()
         optimizer.step()
         
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
+        total_train_step_time_sec += time.perf_counter() - step_start
+        
         total_loss += float(loss) * batch.batch_size
         total_examples += batch.batch_size
     
-    return total_loss / total_examples
+    return total_loss / total_examples, total_train_step_time_sec
 
 
 def test_with_loader(model, loader, device, use_hierarchical_sampling=True):
@@ -271,6 +281,9 @@ def train_and_evaluate(
     
     # Move model to device
     model.to(device)
+    if device.type == 'cuda':
+        torch.cuda.reset_peak_memory_stats(device)
+        torch.cuda.synchronize()
     
     # Setup optimizer and loss
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -294,12 +307,15 @@ def train_and_evaluate(
     custom_print(f'Num neighbors = {num_neighbors}')
     custom_print(f'Hierarchical sampling = {use_hierarchical_sampling}\n')
 
+    total_train_start = time.perf_counter()
+    epoch_train_step_times_sec = []
     for epoch in range(1, n_epochs + 1):
         # Training
-        train_loss = train_epoch(
+        train_loss, train_step_time_sec = train_epoch(
             model, optimizer, criterion, train_loader, device,
             use_hierarchical_sampling=use_hierarchical_sampling
         )
+        epoch_train_step_times_sec.append(train_step_time_sec)
         
         # Validation
         val_acc, val_f1, val_auc, _, _ = test_with_loader(
@@ -323,6 +339,9 @@ def train_and_evaluate(
             custom_print(f"Early stopping triggered after {epoch} epochs!")
             custom_print("*" * 92)
             break
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
+    total_train_time_sec = time.perf_counter() - total_train_start
 
     # Load best model
     model.load_state_dict(best_model_state)
@@ -353,9 +372,15 @@ def train_and_evaluate(
     custom_print(val_report)
 
     custom_print('\nTest Partition Results: ')
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
+    inference_start = time.perf_counter()
     test_acc, test_f1, test_auc, test_true_labels, test_pred_labels = test_with_loader(
         model, test_loader, device, use_hierarchical_sampling=use_hierarchical_sampling
     )
+    if device.type == 'cuda':
+        torch.cuda.synchronize()
+    inference_time_sec = time.perf_counter() - inference_start
     custom_print(f'test_f1 = {test_f1:.4f} \n test_auc = {test_auc:.4f}\n')
     test_report = generate_model_report(test_true_labels, test_pred_labels)
     custom_print(test_report)
@@ -363,4 +388,19 @@ def train_and_evaluate(
     if log_f:
         log_f.close()
 
-    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc)
+    peak_gpu_memory_mb = None
+    if device.type == 'cuda':
+        peak_gpu_memory_mb = torch.cuda.max_memory_allocated(device) / (1024 * 1024)
+
+    avg_train_time_per_epoch_sec = float('nan')
+    if epoch_train_step_times_sec:
+        avg_train_time_per_epoch_sec = float(sum(epoch_train_step_times_sec) / len(epoch_train_step_times_sec))
+
+    hardware_metrics = {
+        'avg_train_time_per_epoch_sec': avg_train_time_per_epoch_sec,
+        'total_train_time_to_convergence_sec': total_train_time_sec,
+        'inference_time_sec': inference_time_sec,
+        'peak_gpu_memory_allocated_mb': peak_gpu_memory_mb,
+    }
+
+    return (train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, hardware_metrics)
