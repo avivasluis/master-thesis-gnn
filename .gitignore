@@ -11,6 +11,7 @@ __pycache__/
 # IDE files
 .vscode/
 .idea/
+.venv
 
 # Local documentation and chat exports
 cursor-chats-exports/
