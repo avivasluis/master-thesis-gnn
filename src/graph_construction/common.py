@@ -33,6 +33,7 @@ __all__ = [
     # Similarity matrix helpers
     "special_print",
     "parse_string_list",
+    "is_list_column",
     "save_similarity_matrix",
     "normalize_matrix",
     # Graph construction helpers (for notebooks)
@@ -98,6 +99,19 @@ def parse_string_list(s: str | list[str] | np.ndarray | None) -> list[str]:
     except ValueError:
         # Malformed quotes, just fall back to whitespace split.
         return s.split()
+
+
+def is_list_column(series: pd.Series) -> bool:
+    """Return True if the column holds list/array values (not string-encoded lists).
+
+    Scalar columns (single string, number, etc.) return False. Rows that are
+    all missing yield False.
+    """
+    non_null = series.dropna()
+    if len(non_null) == 0:
+        return False
+    sample = non_null.iloc[0]
+    return isinstance(sample, (list, np.ndarray)) and not isinstance(sample, str)
 
 
 def save_similarity_matrix(

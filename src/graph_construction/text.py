@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-"""Build similarity matrices from *text* list columns using sentence
-transformer embeddings and cosine similarity.
+"""Build similarity matrices from text columns using sentence transformers.
+
+Supports **list columns** (each row joined into one string) or **scalar
+string columns** (cleaned per row).
 """
 
 import re
@@ -13,6 +15,7 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer
 
 from .common import (
+    is_list_column,
     parse_string_list,
     special_print,
 )
@@ -137,8 +140,8 @@ def build_similarity_matrix(
     Parameters
     ----------
     df
-        Input DataFrame – one row per node. ``item_list_column`` must contain
-        an *iterable* (list/array) of strings.
+        Input DataFrame – one row per node. ``item_list_column`` may contain
+        an *iterable* (list/array) of strings per row, or a single string per row.
     label_column
         Name of the column that holds the node labels (`y`).
     item_list_column
@@ -158,12 +161,15 @@ def build_similarity_matrix(
     """
     df = df.copy()
 
-    # Parse string representations if needed
-    if isinstance(df[item_list_column].iloc[0], str):
-        df[item_list_column] = df[item_list_column].apply(parse_string_list)
-
-    # Join each list of strings into a single string per row
-    df[item_list_column] = df[item_list_column].apply(_join_text_list)
+    if is_list_column(df[item_list_column]):
+        # Parse string representations if needed
+        if isinstance(df[item_list_column].dropna().iloc[0], str):
+            df[item_list_column] = df[item_list_column].apply(parse_string_list)
+        # Join each list of strings into a single string per row
+        df[item_list_column] = df[item_list_column].apply(_join_text_list)
+    else:
+        # Scalar string column: clean HTML / whitespace only
+        df[item_list_column] = df[item_list_column].fillna("").apply(_clean_html_tags)
 
     texts = df[item_list_column].tolist()
 

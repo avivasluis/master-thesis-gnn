@@ -88,6 +88,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--min_support", type=float, default=0.03, help="min_support for association rules")
     p.add_argument("--min_lift", type=float, default=1.2, help="min_lift for association rules")
     p.add_argument("--no-similarity-map", action="store_true", help="For categorical: skip association rule mining, use direct overlap")
+    p.add_argument(
+        "--similarity_map_path",
+        type=str,
+        default=None,
+        help="For categorical scalars: path to pickle file with pre-computed similarity map dict[key, set[related]]",
+    )
     p.add_argument("--no-preprocess", action="store_true", help="Disable automatic preprocessing of the list column")
     # Required for review_count pipeline
     p.add_argument("--time_window", type=str, required=True, help="Time window from which the data is sampled")
@@ -133,7 +139,8 @@ def main() -> None:
         build_kwargs.update(
             min_support=args.min_support,
             min_lift=args.min_lift,
-            use_similarity_map=not args.no_similarity_map
+            use_similarity_map=not args.no_similarity_map,
+            similarity_map_path=args.similarity_map_path,
         )
     
     if args.type == "review_count":
