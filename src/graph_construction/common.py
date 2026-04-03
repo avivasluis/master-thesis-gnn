@@ -36,6 +36,7 @@ __all__ = [
     "is_list_column",
     "save_similarity_matrix",
     "normalize_matrix",
+    "inspect_similar_nodes",
     # Graph construction helpers (for notebooks)
     "return_density",
     'compute_assortativity_categorical',
@@ -162,6 +163,125 @@ def normalize_matrix(M: np.ndarray) -> np.ndarray:
     """
     M_min, M_max = np.nanmin(M), np.nanmax(M)
     return (M - M_min) / (M_max - M_min) if M_max > M_min else M
+
+
+def _format_feature_cell(
+    val: Any,
+    *,
+    is_list: bool,
+    max_text_length: int,
+) -> str:
+    """Turn a cell value into a single-line string for inspection output."""
+    if is_list:
+        if val is None:
+            return ""
+        if not isinstance(val, (list, np.ndarray, str)) and pd.isna(val):
+            return ""
+        if isinstance(val, str):
+            val = parse_string_list(val)
+        if isinstance(val, (list, np.ndarray)):
+            parts = [str(x) for x in val if x is not None and str(x).strip()]
+            s = " | ".join(parts) if parts else ""
+        else:
+            s = str(val)
+    else:
+        s = "" if pd.isna(val) else str(val)
+    if len(s) > max_text_length:
+        return s[: max_text_length - 3] + "..."
+    return s
+
+
+def inspect_similar_nodes(
+    similarity_matrix: np.ndarray,
+    query_node: int,
+    df: pd.DataFrame,
+    feature_column: str,
+    *,
+    top_n: int = 10,
+    show_labels: bool = True,
+    label_column: str = "churn",
+    max_text_length: int = 500,
+) -> pd.DataFrame:
+    """Print and return the top-N most similar nodes for a query row index.
+
+    ``similarity_matrix`` row ``i`` must correspond to ``df.iloc[i]``. The query
+    node itself is excluded by **index**, not by similarity value, so duplicate
+    matches with similarity 1.0 are still listed.
+
+    Parameters
+    ----------
+    similarity_matrix
+        Square matrix of shape ``(N, N)``.
+    query_node
+        Row index of the node to inspect (0-based).
+    df
+        DataFrame with one row per node, same order as the matrix.
+    feature_column
+        Column whose values are shown (the feature used to build the matrix).
+    top_n
+        How many neighbors to show after excluding the query node.
+    show_labels
+        If ``True`` and ``label_column`` exists in ``df``, include labels.
+    label_column
+        Label column name (e.g. ``churn``).
+    max_text_length
+        Truncate displayed feature strings to this many characters.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``node_index``, ``similarity``, ``feature``; plus ``label`` if
+        applicable.
+    """
+    if feature_column not in df.columns:
+        raise ValueError(f"Column '{feature_column}' not found in DataFrame.")
+
+    sim = np.asarray(similarity_matrix)
+    if sim.ndim != 2 or sim.shape[0] != sim.shape[1]:
+        raise ValueError("similarity_matrix must be a square 2-D array.")
+
+    n = sim.shape[0]
+    if len(df) != n:
+        raise ValueError(
+            f"DataFrame length ({len(df)}) must match matrix size ({n})."
+        )
+    if query_node < 0 or query_node >= n:
+        raise IndexError(f"query_node must be in [0, {n - 1}], got {query_node}.")
+
+    scores = sim[query_node]
+    # Descending order by similarity; exclude query row by index (not by score).
+    order = np.argsort(-scores)
+    order = order[order != query_node]
+    neighbor_idx = order[:top_n]
+    neighbor_scores = scores[neighbor_idx]
+
+    is_list = is_list_column(df[feature_column])
+
+    query_text = _format_feature_cell(
+        df[feature_column].iloc[query_node],
+        is_list=is_list,
+        max_text_length=max_text_length,
+    )
+    special_print(query_text, f"Query node {query_node} — {feature_column}")
+
+    rows: list[dict[str, Any]] = []
+    for j, sim_ij in zip(neighbor_idx, neighbor_scores):
+        row: dict[str, Any] = {
+            "node_index": int(j),
+            "similarity": float(sim_ij),
+            "feature": _format_feature_cell(
+                df[feature_column].iloc[j],
+                is_list=is_list,
+                max_text_length=max_text_length,
+            ),
+        }
+        if show_labels and label_column in df.columns:
+            row["label"] = df[label_column].iloc[j]
+        rows.append(row)
+
+    out_df = pd.DataFrame(rows)
+    special_print(out_df.to_string(index=False), f"Top {len(out_df)} similar nodes (excluding index {query_node})")
+    return out_df
 
 
 # ===========================================================================
