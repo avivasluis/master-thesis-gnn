@@ -221,7 +221,8 @@ def inspect_similar_nodes(
     top_n
         How many neighbors to show after excluding the query node.
     show_labels
-        If ``True`` and ``label_column`` exists in ``df``, include labels.
+        If ``True`` and ``label_column`` exists in ``df``, print the query
+        node's label and include neighbor labels in the table.
     label_column
         Label column name (e.g. ``churn``).
     max_text_length
@@ -263,6 +264,11 @@ def inspect_similar_nodes(
         max_text_length=max_text_length,
     )
     special_print(query_text, f"Query node {query_node} — {feature_column}")
+    if show_labels and label_column in df.columns:
+        special_print(
+            df[label_column].iloc[query_node],
+            f"Query node {query_node} — {label_column}",
+        )
 
     rows: list[dict[str, Any]] = []
     for j, sim_ij in zip(neighbor_idx, neighbor_scores):
