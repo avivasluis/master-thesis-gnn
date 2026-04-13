@@ -249,7 +249,7 @@ if __name__ == '__main__':
         # Check if already 0-indexed
         if unique_labels.min().item() != 0 or unique_labels.max().item() != args.num_classes - 1:
             print(f"Remapping labels from {unique_labels.tolist()} to [0, {args.num_classes - 1}]")
-            label_map = {old.item(): new for new, old in enumerate(sorted(unique_labels.tolist()))}
+            label_map = {old: new for new, old in enumerate(sorted(unique_labels.tolist()))}
             args.data.y = torch.tensor([label_map[y.item()] for y in args.data.y], dtype=torch.long)
             args.label_map = label_map  # store for reference
         else:
