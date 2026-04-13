@@ -8,6 +8,7 @@ from src.models.mlp import MLP
 from src.models.gin import GIN
 from src.models.sage import GraphSAGE
 from src.models.train_evaluate import train_and_evaluate
+from src.models.train_evaluate_multiclass import train_and_evaluate as train_and_evaluate_multiclass
 from src.models.train_evaluate_neighbor_loader import train_and_evaluate as train_and_evaluate_neighbor_loader
 from src.graph_analysis.metrics import compute_density, compute_assortativity_categorical, compute_homophily_ratio
 import os
@@ -41,8 +42,45 @@ def main(args):
         os.makedirs(args.log_file_path, exist_ok=True)
         log_file = os.path.join(args.log_file_path, args.log_file_name)
 
-    if args.use_neighbor_loader:
-        # Mini-batch training with NeighborLoader
+    train_f1_micro = train_f1_macro = None
+    val_f1_micro = val_f1_macro = None
+    test_f1_micro = test_f1_macro = None
+
+    if args.num_classes > 2:
+        if args.use_neighbor_loader:
+            raise ValueError(
+                "Multi-class training with NeighborLoader is not supported. "
+                "Omit --use_neighbor_loader for full-batch multi-class training."
+            )
+        (
+            train_acc,
+            train_f1_micro,
+            train_f1_macro,
+            train_auc,
+            val_acc,
+            val_f1_micro,
+            val_f1_macro,
+            val_auc,
+            test_acc,
+            test_f1_micro,
+            test_f1_macro,
+            test_auc,
+            hardware_metrics,
+        ) = train_and_evaluate_multiclass(
+            args.model,
+            args.data,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            class_weights=args.class_weights,
+            n_epochs=args.n_epochs,
+            early_stop_patience=args.early_stop_patience,
+            log_file=log_file,
+        )
+        optimal_threshold = None
+        # Mirror micro-F1 into generic keys for downstream consumers
+        train_f1, val_f1, test_f1 = train_f1_micro, val_f1_micro, test_f1_micro
+    elif args.use_neighbor_loader:
+        # Mini-batch training with NeighborLoader (binary)
         train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, hardware_metrics = train_and_evaluate_neighbor_loader(
             args.model, args.data,
             lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
@@ -52,7 +90,7 @@ def main(args):
         )
         optimal_threshold = None
     else:
-        # Full-batch training (original)
+        # Full-batch binary classification
         train_acc, train_f1, train_auc, val_acc, val_f1, val_auc, test_acc, test_f1, test_auc, optimal_threshold, hardware_metrics = train_and_evaluate(
             args.model, args.data,
             lr=args.lr, weight_decay=args.weight_decay, pos_weight=args.pos_weight,
@@ -74,6 +112,7 @@ def main(args):
         'dataset': getattr(args.data, 'dataset', args.dataset),
         'task': getattr(args.data, 'task', args.task),
         'GNN_model': args.GNN_model,
+        'num_classes': args.num_classes,
         'seed': args.seed,
         'num_layers': args.num_layers,
         'hidden_channels': args.hidden_channels,
@@ -89,12 +128,18 @@ def main(args):
         # Results
         'train_acc': train_acc,
         'train_f1': train_f1,
+        'train_f1_micro': train_f1_micro,
+        'train_f1_macro': train_f1_macro,
         'train_auc': train_auc,
         'val_acc': val_acc,
         'val_f1': val_f1,
+        'val_f1_micro': val_f1_micro,
+        'val_f1_macro': val_f1_macro,
         'val_auc': val_auc,
         'test_acc': test_acc,
         'test_f1': test_f1,
+        'test_f1_micro': test_f1_micro,
+        'test_f1_macro': test_f1_macro,
         'test_auc': test_auc,
         'optimal_classifying_threshold': optimal_threshold,
         # Hardware metrics
@@ -130,6 +175,18 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.5, help='')
     parser.add_argument('--early_stop_patience', type=int, default=15, help='')
     parser.add_argument('--pos_weight', type=float, default=None, help='')
+    parser.add_argument(
+        '--num_classes',
+        type=int,
+        default=2,
+        help='Number of classes (2 for binary BCE; >2 for multi-class cross-entropy)',
+    )
+    parser.add_argument(
+        '--class_weights',
+        type=str,
+        default=None,
+        help='Optional comma-separated class weights for CrossEntropyLoss (multi-class only), e.g. "1.0,2.0,0.5"',
+    )
     parser.add_argument('--n_epochs', type=int, default=100, help='')
 
     # NeighborLoader arguments
@@ -151,6 +208,23 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    if args.num_classes < 2:
+        parser.error('--num_classes must be at least 2')
+
+    cw = None
+    if args.class_weights is not None:
+        if args.num_classes <= 2:
+            parser.error('--class_weights is only supported when --num_classes > 2')
+        try:
+            cw = [float(x.strip()) for x in args.class_weights.split(',')]
+        except ValueError as e:
+            parser.error(f'Invalid --class_weights: {e}')
+        if len(cw) != args.num_classes:
+            parser.error(
+                f'--class_weights must have {args.num_classes} values (comma-separated), got {len(cw)}'
+            )
+    args.class_weights = cw
+
     set_seed(args.seed)
 
     if args.log_file_name != 'None':
@@ -163,28 +237,30 @@ if __name__ == '__main__':
     args.data = torch.load(processed_graph_path, weights_only=False)
     args.graph_object_size_mb = get_graph_object_size_mb(args.data)
 
+    out_channels = 1 if args.num_classes == 2 else args.num_classes
+
     if args.GNN_model == 'MLP':
         args.model = MLP(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
-                        out_channels=1,
+                        out_channels=out_channels,
                         num_layers = args.num_layers,
                         dropout = args.dropout)
     elif args.GNN_model == 'GCN':
         args.model = GCN(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
-                        out_channels=1,
+                        out_channels=out_channels,
                         num_layers = args.num_layers,
                         dropout = args.dropout)
     elif args.GNN_model == 'GIN':
         args.model = GIN(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
-                        out_channels=1,
+                        out_channels=out_channels,
                         num_layers = args.num_layers,
                         dropout = args.dropout)
     elif args.GNN_model == 'GraphSAGE':
         args.model = GraphSAGE(in_channels=args.data.x.shape[1], 
                         hidden_channels=args.hidden_channels, 
-                        out_channels=1,
+                        out_channels=out_channels,
                         num_layers = args.num_layers,
                         dropout = args.dropout)
 
