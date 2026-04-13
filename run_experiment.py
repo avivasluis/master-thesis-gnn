@@ -113,6 +113,7 @@ def main(args):
         'task': getattr(args.data, 'task', args.task),
         'GNN_model': args.GNN_model,
         'num_classes': args.num_classes,
+        'label_map': getattr(args, 'label_map', None),
         'seed': args.seed,
         'num_layers': args.num_layers,
         'hidden_channels': args.hidden_channels,
@@ -236,6 +237,23 @@ if __name__ == '__main__':
 
     args.data = torch.load(processed_graph_path, weights_only=False)
     args.graph_object_size_mb = get_graph_object_size_mb(args.data)
+
+    # For multi-class: remap labels to [0, num_classes-1] if needed
+    if args.num_classes > 2:
+        unique_labels = torch.unique(args.data.y)
+        n_unique = len(unique_labels)
+        if n_unique != args.num_classes:
+            raise ValueError(
+                f"--num_classes={args.num_classes} but data contains {n_unique} unique labels: {unique_labels.tolist()}"
+            )
+        # Check if already 0-indexed
+        if unique_labels.min().item() != 0 or unique_labels.max().item() != args.num_classes - 1:
+            print(f"Remapping labels from {unique_labels.tolist()} to [0, {args.num_classes - 1}]")
+            label_map = {old.item(): new for new, old in enumerate(sorted(unique_labels.tolist()))}
+            args.data.y = torch.tensor([label_map[y.item()] for y in args.data.y], dtype=torch.long)
+            args.label_map = label_map  # store for reference
+        else:
+            args.label_map = None
 
     out_channels = 1 if args.num_classes == 2 else args.num_classes
 
