@@ -50,6 +50,10 @@ def _create_similarity_matrix(data_lists: Sequence[np.ndarray]) -> np.ndarray:
     """Compute similarity matrix using Wasserstein distance.
     
     Similarity formula: sim = 1.0 / (1.0 + wasserstein_distance(i, j))
+    
+    Empty list handling:
+        - Both empty: similarity = 1.0 (identical empty distributions)
+        - One empty, one not: similarity = 0.0 (no meaningful comparison)
     """
     n = len(data_lists)
     sim = np.ones((n, n), dtype=float)
@@ -57,8 +61,15 @@ def _create_similarity_matrix(data_lists: Sequence[np.ndarray]) -> np.ndarray:
         if i % 100 == 0:
             print(f"Processing row {i}/{n}")
         for j in range(i + 1, n):
-            dist = wasserstein_distance(data_lists[i], data_lists[j])
-            sim_val = 1.0 / (1.0 + dist)
+            len_i = len(data_lists[i])
+            len_j = len(data_lists[j])
+            
+            if len_i == 0 or len_j == 0:
+                # Both empty -> perfect similarity; one empty -> no similarity
+                sim_val = 1.0 if (len_i == 0 and len_j == 0) else 0.0
+            else:
+                dist = wasserstein_distance(data_lists[i], data_lists[j])
+                sim_val = 1.0 / (1.0 + dist)
             sim[i, j] = sim[j, i] = sim_val
     return sim
 
